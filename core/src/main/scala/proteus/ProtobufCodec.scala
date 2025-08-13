@@ -7,11 +7,12 @@ import scala.collection.immutable.HashMap
 import scala.collection.mutable
 
 import com.google.protobuf.{CodedInputStream, CodedOutputStream}
-import internal.FieldMap
-import internal.ProtobufWriter
 import zio.blocks.schema.*
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+
+import proteus.internal.FieldMap
+import proteus.internal.ProtobufWriter
 
 sealed trait ProtobufCodec[A] {
   import ProtobufCodec.*
@@ -446,7 +447,7 @@ object ProtobufCodec {
     findTopLevelDefs(codec)
   }
 
-  def toProtoType(codec: ProtobufCodec[?]): ProtoIR.Type =
+  private def toProtoType(codec: ProtobufCodec[?]): ProtoIR.Type =
     codec match {
       case t: ProtobufCodec.Transform[_, _]      => toProtoType(t.codec)
       case o: ProtobufCodec.Optional[_]          => toProtoType(o.codec)

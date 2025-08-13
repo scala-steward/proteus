@@ -153,7 +153,7 @@ object Renderer {
     }
   }
 
-  def statement(string: String): Text =
+  private def statement(string: String): Text =
     line(s"$string;")
 
 }
