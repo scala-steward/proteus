@@ -40,6 +40,18 @@ lazy val core = project
       )
   )
 
+lazy val service = project
+  .in(file("service"))
+  .settings(name := "proteus-service")
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++=
+      Seq(
+        "io.grpc" % "grpc-stub" % grpcVersion
+      )
+  )
+  .dependsOn(core)
+
 lazy val benchmarks = project
   .in(file("benchmarks"))
   .settings(commonSettings)

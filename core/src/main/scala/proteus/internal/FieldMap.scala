@@ -1,4 +1,5 @@
-package proteus.internal
+package proteus
+package internal
 
 import scala.collection.immutable.HashMap
 

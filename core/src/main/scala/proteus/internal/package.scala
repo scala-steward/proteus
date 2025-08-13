@@ -1,4 +1,5 @@
-package proteus.internal
+package proteus
+package internal
 
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
