@@ -45,6 +45,9 @@ lazy val commonSettings = Def.settings(
     "-deprecation",
     "-preview",
     "-Xfatal-warnings",
-    "-no-indent"
+    "-no-indent",
+    "-Wunused:all,-locals",
+    "-Wvalue-discard",
+    "-Xkind-projector"
   )
 )

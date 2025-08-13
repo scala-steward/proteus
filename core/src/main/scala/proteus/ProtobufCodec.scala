@@ -5,9 +5,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import scala.collection.immutable.HashMap
 import scala.collection.mutable
-import scala.util.control.NonFatal
 
 import com.google.protobuf.{CodedInputStream, CodedOutputStream}
+import internal.FieldMap
+import internal.ProtobufWriter
 import zio.blocks.schema.*
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -18,9 +19,9 @@ sealed trait ProtobufCodec[A] {
   def encode(value: A): Array[Byte] =
     withRegisters { registers =>
       val writer = ProtobufCodec.toProtoWriter(this, value, -1, registers, RegisterOffset.Zero, oneOfOrRepeated = false)
-      val bytes  = new Array[Byte](ProtoWriter.innerSize(writer))
+      val bytes  = new Array[Byte](internal.ProtobufWriter.innerSize(writer))
       val output = CodedOutputStream.newInstance(bytes)
-      ProtoWriter.write(writer)(using output)
+      internal.ProtobufWriter.write(writer)(using output)
       bytes
     }
 
@@ -64,7 +65,7 @@ object ProtobufCodec {
     defaultValue: Any,
     oneOfName: Option[String]
   ) {
-    def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtoWriter = {
+    def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
       val res = refine(getFromRegister(registers, offset, register))
       if (res == null) null else ProtobufCodec.toProtoWriter(codec, res, id, registers, nextOffset, oneOfOrRepeated = false)
     }
@@ -79,26 +80,26 @@ object ProtobufCodec {
   }
 
   final case class Primitive[A](primitiveType: PrimitiveType[A]) extends ProtobufCodec[A] {
-    def toProtoWriter(a: A, id: Int): ProtoWriter =
+    def toProtoWriter(a: A, id: Int): ProtobufWriter =
       primitiveType match {
         case _: PrimitiveType.Int     =>
           val value: Int = a
-          if (value == 0 && id != -1) null else ProtoWriter.IntPrimitive(value, id)
+          if (value == 0 && id != -1) null else internal.ProtobufWriter.IntPrimitive(value, id)
         case _: PrimitiveType.Long    =>
           val value: Long = a
-          if (value == 0L && id != -1) null else ProtoWriter.LongPrimitive(value, id)
+          if (value == 0L && id != -1) null else internal.ProtobufWriter.LongPrimitive(value, id)
         case _: PrimitiveType.Boolean =>
           val value: Boolean = a
-          if (!value && id != -1) null else ProtoWriter.BoolPrimitive(value, id)
+          if (!value && id != -1) null else internal.ProtobufWriter.BoolPrimitive(value, id)
         case _: PrimitiveType.String  =>
           val value: String = a
-          if (value == "" && id != -1) null else ProtoWriter.StringPrimitive(value, id)
+          if (value == "" && id != -1) null else internal.ProtobufWriter.StringPrimitive(value, id)
         case _: PrimitiveType.Double  =>
           val value: Double = a
-          if (value == 0d && id != -1) null else ProtoWriter.DoublePrimitive(value, id)
+          if (value == 0d && id != -1) null else internal.ProtobufWriter.DoublePrimitive(value, id)
         case _: PrimitiveType.Float   =>
           val value: Float = a
-          if (value == 0f && id != -1) null else ProtoWriter.FloatPrimitive(value, id)
+          if (value == 0f && id != -1) null else internal.ProtobufWriter.FloatPrimitive(value, id)
         case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
       }
   }
@@ -109,9 +110,9 @@ object ProtobufCodec {
     val valuesByIndex: HashMap[Int, A]  = HashMap.from(values.map(v => (v.index, v.value)))
     val indexesByValue: HashMap[A, Int] = HashMap.from(values.map(v => (v.value, v.index)))
 
-    def toProtoWriter(a: A, id: Int): ProtoWriter = {
+    def toProtoWriter(a: A, id: Int): ProtobufWriter = {
       val index = indexesByValue(a)
-      if (index == 0) null else ProtoWriter.IntPrimitive(index, id)
+      if (index == 0) null else internal.ProtobufWriter.IntPrimitive(index, id)
     }
 
     def toProtoIR: ProtoIR.Enum =
@@ -134,17 +135,17 @@ object ProtobufCodec {
   ) extends ProtobufCodec[A] {
     val fieldMap: FieldMap = FieldMap(HashMap.from(fields.map(f => f.id -> f)))
 
-    def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset, oneOfOrRepeated: Boolean): ProtoWriter = {
+    def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset, oneOfOrRepeated: Boolean): ProtobufWriter = {
       deconstructor.deconstruct(registers, offset, a)
       val nextOffset = RegisterOffset.add(offset, usedRegisters)
-      val builder    = List.newBuilder[ProtoWriter]
+      val builder    = List.newBuilder[ProtobufWriter]
       var remaining  = fields
       while (remaining ne Nil) {
         val res = remaining.head.toProtoWriter(registers, offset, nextOffset)
         if (res ne null) builder += res
         remaining = remaining.tail
       }
-      ProtoWriter.Message(id, builder.result(), oneOfOrRepeated)
+      internal.ProtobufWriter.Message(id, builder.result(), oneOfOrRepeated)
     }
 
     def toProtoIR: ProtoIR.Message = {
@@ -189,12 +190,12 @@ object ProtobufCodec {
     deconstructor: SeqDeconstructor[C],
     packed: Boolean
   ) extends ProtobufCodec[C[E]] {
-    def toElementProtoWriter[A](codec: ProtobufCodec[A]): (Int, Registers, RegisterOffset) => A => ProtoWriter =
+    def toElementProtoWriter[A](codec: ProtobufCodec[A]): (Int, Registers, RegisterOffset) => A => ProtobufWriter =
       codec match {
-        case p: ProtobufCodec.Primitive[_]    => (id, registers, offset) => p.toProtoWriter(_, id)
+        case p: ProtobufCodec.Primitive[_]    => (id, _, _) => p.toProtoWriter(_, id)
         case p: ProtobufCodec.Message[_]      => (id, registers, offset) => p.toProtoWriter(_, id, registers, offset, oneOfOrRepeated = true)
-        case p: ProtobufCodec.Enum[_]         => (id, registers, offset) => p.toProtoWriter(_, id)
-        case p: ProtobufCodec.Transform[a, _] =>
+        case p: ProtobufCodec.Enum[_]         => (id, _, _) => p.toProtoWriter(_, id)
+        case p: ProtobufCodec.Transform[_, _] =>
           (id, registers, offset) => a => toElementProtoWriter(p.codec)(id, registers, offset)(p.to(registers, offset, a))
         case p: ProtobufCodec.Optional[_]     =>
           (id, registers, offset) => {
@@ -204,20 +205,20 @@ object ProtobufCodec {
         case _                                => throw new Exception(s"Invalid codec inside repeated: $codec")
       }
 
-    val elementProtoWriter: (Int, Registers, RegisterOffset) => E => ProtoWriter =
+    val elementProtoWriter: (Int, Registers, RegisterOffset) => E => ProtobufWriter =
       toElementProtoWriter(element)
 
-    def toProtoWriter(a: C[E], id: Int, registers: Registers, offset: RegisterOffset): ProtoWriter = {
+    def toProtoWriter(a: C[E], id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter = {
       val it = deconstructor.deconstruct(a)
       if (it.isEmpty) null
       else {
-        val builder         = List.newBuilder[ProtoWriter]
+        val builder         = List.newBuilder[ProtobufWriter]
         val makeProtoWriter = elementProtoWriter(if (packed) -1 else id, registers, offset)
         while (it.hasNext) {
           val res = makeProtoWriter(it.next)
           if (res ne null) builder += res
         }
-        ProtoWriter.Repeated(builder.result(), id, packed)
+        internal.ProtobufWriter.Repeated(builder.result(), id, packed)
       }
     }
   }
@@ -227,29 +228,29 @@ object ProtobufCodec {
     constructor: MapConstructor[C],
     deconstructor: MapDeconstructor[C]
   ) extends ProtobufCodec[C[K, V]] {
-    def toProtoWriter(a: C[K, V], id: Int, registers: Registers, offset: RegisterOffset): ProtoWriter = {
+    def toProtoWriter(a: C[K, V], id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter = {
       val it = deconstructor.deconstruct(a)
       if (it.isEmpty) null
       else {
-        val builder = List.newBuilder[ProtoWriter]
+        val builder = List.newBuilder[ProtobufWriter]
         while (it.hasNext) {
           val kv  = it.next
           val res = element.toProtoWriter((deconstructor.getKey(kv), deconstructor.getValue(kv)), id, registers, offset, oneOfOrRepeated = true)
           if (res ne null) builder += res
         }
-        ProtoWriter.Repeated(builder.result(), id, packed = false)
+        internal.ProtobufWriter.Repeated(builder.result(), id, packed = false)
       }
     }
   }
 
   final case class Transform[A, B](from: (Registers, RegisterOffset, A) => B, to: (Registers, RegisterOffset, B) => A, codec: ProtobufCodec[A])
     extends ProtobufCodec[B] {
-    def toProtoWriter(b: B, id: Int, registers: Registers, offset: RegisterOffset, oneOfOrRepeated: Boolean): ProtoWriter =
+    def toProtoWriter(b: B, id: Int, registers: Registers, offset: RegisterOffset, oneOfOrRepeated: Boolean): ProtobufWriter =
       ProtobufCodec.toProtoWriter(codec, to(registers, offset, b), id, registers, offset, oneOfOrRepeated)
   }
 
   final case class Optional[A](codec: ProtobufCodec[A]) extends ProtobufCodec[Option[A]] {
-    def toProtoWriter(a: Option[A], id: Int, registers: Registers, offset: RegisterOffset, oneOfOrRepeated: Boolean): ProtoWriter = a match {
+    def toProtoWriter(a: Option[A], id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter = a match {
       case None        => null
       case Some(value) => ProtobufCodec.toProtoWriter(codec, value, id, registers, offset, oneOfOrRepeated = false)
     }
@@ -262,7 +263,7 @@ object ProtobufCodec {
     registers: Registers,
     offset: RegisterOffset,
     oneOfOrRepeated: Boolean
-  ): ProtoWriter =
+  ): ProtobufWriter =
     codec match {
       case p: ProtobufCodec.Primitive[_]         => p.toProtoWriter(a, id)
       case p: ProtobufCodec.Message[_]           => p.toProtoWriter(a, id, registers, offset, oneOfOrRepeated)
@@ -270,7 +271,7 @@ object ProtobufCodec {
       case p: ProtobufCodec.RepeatedMap[c, k, v] => p.toProtoWriter(a, id, registers, offset)
       case p: ProtobufCodec.Enum[_]              => p.toProtoWriter(a, id)
       case p: ProtobufCodec.Transform[_, _]      => p.toProtoWriter(a, id, registers, offset, oneOfOrRepeated)
-      case p: ProtobufCodec.Optional[_]          => p.toProtoWriter(a, id, registers, offset, oneOfOrRepeated)
+      case p: ProtobufCodec.Optional[_]          => p.toProtoWriter(a, id, registers, offset)
     }
 
   private val defaultCompleteBuilders: () => Unit = () => ()
@@ -304,7 +305,7 @@ object ProtobufCodec {
 
       def handleRepeated[C[_], E](r: Repeated[C, E], field: MessageField[?]): C[E] = {
         val register     = field.register.asInstanceOf[Register[Any]]
-        var currentValue = getFromRegister(registers, offset, register)
+        val currentValue = getFromRegister(registers, offset, register)
         val builder =
           // safe cast because both the default value and a builder are objects
           if (currentValue.asInstanceOf[AnyRef] eq field.defaultValue.asInstanceOf[AnyRef]) {
@@ -320,7 +321,7 @@ object ProtobufCodec {
 
       def handleRepeatedMap[M[_, _], K, V](r: RepeatedMap[M, K, V], field: MessageField[?]): M[K, V] = {
         val register     = field.register.asInstanceOf[Register[Any]]
-        var currentValue = getFromRegister(registers, offset, register)
+        val currentValue = getFromRegister(registers, offset, register)
         val builder =
           // safe cast because both the default value and a builder are objects
           if (currentValue.asInstanceOf[AnyRef] eq field.defaultValue.asInstanceOf[AnyRef]) {
@@ -414,7 +415,7 @@ object ProtobufCodec {
   private def isOptional[A](using codec: ProtobufCodec[A]): Boolean =
     codec match {
       case t: ProtobufCodec.Transform[_, _] => isOptional(using t.codec)
-      case o: ProtobufCodec.Optional[_]     => true
+      case _: ProtobufCodec.Optional[_]     => true
       case _                                => false
     }
 
@@ -468,4 +469,33 @@ object ProtobufCodec {
           toProtoType(m.element.fields(1).codec)
         )
     }
+
+  private def getFromRegister[A](registers: Registers, offset: RegisterOffset, register: Register[A]): A =
+    register match {
+      case reg: Register.Object[_] => reg.get(registers, offset)
+      case reg: Register.Int       => reg.get(registers, offset)
+      case reg: Register.Long      => reg.get(registers, offset)
+      case reg: Register.Boolean   => reg.get(registers, offset)
+      case reg: Register.Double    => reg.get(registers, offset)
+      case reg: Register.Float     => reg.get(registers, offset)
+      case reg: Register.Byte      => reg.get(registers, offset)
+      case reg: Register.Short     => reg.get(registers, offset)
+      case reg: Register.Char      => reg.get(registers, offset)
+      case Register.Unit           => Register.Unit.get(registers, offset)
+    }
+
+  private def setToRegister[A](registers: Registers, offset: RegisterOffset, register: Register[A], value: A): Unit =
+    register match {
+      case reg: Register.Object[_] => reg.set(registers, offset, value)
+      case reg: Register.Int       => reg.set(registers, offset, value)
+      case reg: Register.Long      => reg.set(registers, offset, value)
+      case reg: Register.Boolean   => reg.set(registers, offset, value)
+      case reg: Register.Double    => reg.set(registers, offset, value)
+      case reg: Register.Float     => reg.set(registers, offset, value)
+      case reg: Register.Byte      => reg.set(registers, offset, value)
+      case reg: Register.Short     => reg.set(registers, offset, value)
+      case reg: Register.Char      => reg.set(registers, offset, value)
+      case Register.Unit           => Register.Unit.set(registers, offset, value)
+    }
+
 }

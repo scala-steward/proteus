@@ -1,7 +1,8 @@
 package proteus
 
 import proteus.ProtoIR.*
-import proteus.Text.*
+import proteus.internal.Text
+import proteus.internal.Text.*
 
 object Renderer {
   def render(compilationUnit: CompilationUnit): String = {
@@ -81,7 +82,6 @@ object Renderer {
       case MessageElement.NestedMessageElement(message) => renderMessage(message)
     }
 
-  // collapses into a few reserved statements
   def renderReserved(reserved: List[Reserved]): Text = {
     val numeric = reserved.collect {
       case Reserved.Number(number)    => s"$number"

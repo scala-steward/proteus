@@ -1,11 +1,10 @@
-package proteus
+package proteus.internal
 
 import scala.collection.immutable.HashMap
 
-import ProtobufCodec.*
+import proteus.ProtobufCodec.*
 
-@SuppressWarnings(Array("org.wartremover.warts.Equals"))
-final class FieldMap private (
+final private[proteus] class FieldMap private (
   private val array: Array[MessageField[?]],
   private val map: HashMap[Int, MessageField[?]],
   private val arraySize: Int,

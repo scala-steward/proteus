@@ -1,11 +1,10 @@
-package proteus
+package proteus.internal
 
 import scala.annotation.tailrec
 
-sealed trait Text
+sealed private[proteus] trait Text
 
-@SuppressWarnings(Array("org.wartremover.warts.Equals"))
-object Text {
+private[proteus] object Text {
   case class Line(string: String)    extends Text
   case class Many(texts: List[Text]) extends Text
   case class Indent(text: Text)      extends Text
