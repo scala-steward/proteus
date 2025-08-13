@@ -13,10 +13,10 @@ object ServerBackend {
 
   case class RequestResponseMetadata(requestMetadata: Metadata, responseMetadata: Metadata)
 
-  val direct: ServerBackend[[A] =>> A, [A] =>> A, RequestResponseMetadata] =
-    directWith(server.ServerInterceptor.empty)
+  val directBackend: ServerBackend[[A] =>> A, [A] =>> A, RequestResponseMetadata] =
+    directBackendWith(server.ServerInterceptor.empty)
 
-  def directWith[Context](
+  def directBackendWith[Context](
     interceptor: ServerInterceptor[[A] =>> A, [A] =>> A, RequestResponseMetadata, Context]
   ): ServerBackend[[A] =>> A, [A] =>> A, Context] =
     new ServerBackend[[A] =>> A, [A] =>> A, Context] {
@@ -46,10 +46,10 @@ object ServerBackend {
         }
     }
 
-  val future: ServerBackend[Future, Future, RequestResponseMetadata] =
-    futureWith(server.ServerInterceptor.empty)
+  val futureBackend: ServerBackend[Future, Future, RequestResponseMetadata] =
+    futureBackendWith(server.ServerInterceptor.empty)
 
-  def futureWith[Context](
+  def futureBackendWith[Context](
     interceptor: ServerInterceptor[Future, Future, RequestResponseMetadata, Context]
   ): ServerBackend[Future, Future, Context] =
     new ServerBackend[Future, Future, Context] {
