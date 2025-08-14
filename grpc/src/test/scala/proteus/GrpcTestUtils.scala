@@ -2,10 +2,12 @@ package proteus
 
 import java.util.concurrent.{CompletableFuture, TimeUnit}
 import scala.jdk.CollectionConverters.*
+import io.grpc.Metadata
 import io.grpc.netty.{NettyChannelBuilder, NettyServerBuilder}
 import io.grpc.protobuf.services.ProtoReflectionServiceV1
 import io.grpc.reflection.v1.{ServerReflectionGrpc, ServerReflectionRequest}
 import zio.blocks.schema.Schema
+import proteus.server.RequestResponseMetadata
 
 object GrpcTestUtils {
 
@@ -107,6 +109,24 @@ object GrpcTestUtils {
     response2.preferredContact == ContactMethod.Phone("555-0123", "US") &&
     response3.preferredContact == ContactMethod.Slack("my-workspace", "#general") &&
     response3.processingNote == "No count provided"
+
+  case class MetadataRequest(message: String) derives zio.blocks.schema.Schema
+  case class MetadataResponse(echo: String, clientId: String, serverNote: String) derives zio.blocks.schema.Schema
+
+  val metadataRpc = Rpc.unary[MetadataRequest, MetadataResponse]("ProcessWithMetadata")
+  val metadataService = Service("MetadataService").rpc(metadataRpc)
+
+  def processWithMetadata(req: MetadataRequest, ctx: RequestResponseMetadata): MetadataResponse = {
+    val clientId = Option(ctx.requestMetadata.get(Metadata.Key.of("client-id", Metadata.ASCII_STRING_MARSHALLER))).getOrElse("unknown")
+    ctx.responseMetadata.put(Metadata.Key.of("server-response", Metadata.ASCII_STRING_MARSHALLER), "processed")
+    MetadataResponse(req.message.toUpperCase, clientId, "Server processed with metadata")
+  }
+
+  def validateMetadataResponse(response: MetadataResponse, responseMetadata: Metadata, expectedClientId: String, expectedMessage: String): Boolean =
+    response.echo == expectedMessage.toUpperCase &&
+    response.clientId == expectedClientId &&
+    response.serverNote == "Server processed with metadata" &&
+    responseMetadata.get(Metadata.Key.of("server-response", Metadata.ASCII_STRING_MARSHALLER)) == "processed"
 
   def testReflection(port: Int, serverDefinition: io.grpc.ServerServiceDefinition): Boolean = {
     val reflectionService = ProtoReflectionServiceV1.newInstance

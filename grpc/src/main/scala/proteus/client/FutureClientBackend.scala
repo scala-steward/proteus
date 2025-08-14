@@ -44,15 +44,19 @@ class FutureClientBackend(channel: Channel) extends ClientBackendUnary[Future] {
       val metadataAttachingChannel = ClientInterceptors.intercept(interceptedChannel, MetadataUtils.newAttachHeadersInterceptor(requestMetadata))
       val call                     = metadataAttachingChannel.newCall(methodDescriptor, CallOptions.DEFAULT)
 
+      val responseRef = new AtomicReference[Response]()
+      
       val listener = new StreamObserver[Response] {
         def onNext(value: Response): Unit = {
+          responseRef.set(value)
+        }
+        def onError(t: Throwable): Unit   = promise.failure(t)
+        def onCompleted(): Unit = {
           val combinedMetadata = new Metadata()
           Option(responseHeaders.get()).foreach(combinedMetadata.merge)
           Option(responseTrailers.get()).foreach(combinedMetadata.merge)
-          promise.success((value, combinedMetadata))
+          promise.success((responseRef.get(), combinedMetadata))
         }
-        def onError(t: Throwable): Unit   = promise.failure(t)
-        def onCompleted(): Unit           = ()
       }
 
       io.grpc.stub.ClientCalls.asyncUnaryCall(call, request, listener)
