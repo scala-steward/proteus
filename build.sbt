@@ -66,7 +66,7 @@ lazy val zioGrpc = project
         "com.thesamet.scalapb.zio-grpc" %% "zio-grpc-core" % zioGrpcVersion
       )
   )
-  .dependsOn(grpc)
+  .dependsOn(grpc % "compile->compile;test->test")
 
 lazy val fs2Grpc = project
   .in(file("grpc-fs2"))
@@ -78,7 +78,7 @@ lazy val fs2Grpc = project
         "org.typelevel" %% "fs2-grpc-runtime" % fs2GrpcVersion
       )
   )
-  .dependsOn(grpc)
+  .dependsOn(grpc % "compile->compile;test->test")
 
 lazy val benchmarks = project
   .in(file("benchmarks"))
