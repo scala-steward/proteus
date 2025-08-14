@@ -45,13 +45,12 @@ class FutureClientBackend(channel: Channel) extends ClientBackendUnary[Future] {
       val call                     = metadataAttachingChannel.newCall(methodDescriptor, CallOptions.DEFAULT)
 
       val responseRef = new AtomicReference[Response]()
-      
+
       val listener = new StreamObserver[Response] {
-        def onNext(value: Response): Unit = {
+        def onNext(value: Response): Unit =
           responseRef.set(value)
-        }
         def onError(t: Throwable): Unit   = promise.failure(t)
-        def onCompleted(): Unit = {
+        def onCompleted(): Unit           = {
           val combinedMetadata = new Metadata()
           Option(responseHeaders.get()).foreach(combinedMetadata.merge)
           Option(responseTrailers.get()).foreach(combinedMetadata.merge)
