@@ -65,12 +65,35 @@ object Rpc {
   case class BidiStreaming[Request, Response](name: String)(using requestCodec: ProtobufCodec[Request], responseCodec: ProtobufCodec[Response])
     extends Rpc[Request, Response]
 
-  def unary[Request: Schema, Response: Schema](name: String): Unary[Request, Response]                     =
-    Unary(name)(using Schema[Request].derive(ProtobufDeriver), Schema[Response].derive(ProtobufDeriver))
+  def unary[Request: Schema, Response: Schema](name: String): Unary[Request, Response]                                                               =
+    unary(name, Schema[Request].derive(ProtobufDeriver), Schema[Response].derive(ProtobufDeriver))
+  def unary[Request, Response](name: String, requestCodec: ProtobufCodec[Request], responseCodec: ProtobufCodec[Response]): Unary[Request, Response] =
+    Unary(name)(using requestCodec, responseCodec)
+
   def clientStreaming[Request: Schema, Response: Schema](name: String): ClientStreaming[Request, Response] =
-    ClientStreaming(name)(using Schema[Request].derive(ProtobufDeriver), Schema[Response].derive(ProtobufDeriver))
+    clientStreaming(name, Schema[Request].derive(ProtobufDeriver), Schema[Response].derive(ProtobufDeriver))
+  def clientStreaming[Request, Response](
+    name: String,
+    requestCodec: ProtobufCodec[Request],
+    responseCodec: ProtobufCodec[Response]
+  ): ClientStreaming[Request, Response] =
+    ClientStreaming(name)(using requestCodec, responseCodec)
+
   def serverStreaming[Request: Schema, Response: Schema](name: String): ServerStreaming[Request, Response] =
-    ServerStreaming(name)(using Schema[Request].derive(ProtobufDeriver), Schema[Response].derive(ProtobufDeriver))
-  def bidiStreaming[Request: Schema, Response: Schema](name: String): BidiStreaming[Request, Response]     =
-    BidiStreaming(name)(using Schema[Request].derive(ProtobufDeriver), Schema[Response].derive(ProtobufDeriver))
+    serverStreaming(name, Schema[Request].derive(ProtobufDeriver), Schema[Response].derive(ProtobufDeriver))
+  def serverStreaming[Request, Response](
+    name: String,
+    requestCodec: ProtobufCodec[Request],
+    responseCodec: ProtobufCodec[Response]
+  ): ServerStreaming[Request, Response] =
+    ServerStreaming(name)(using requestCodec, responseCodec)
+
+  def bidiStreaming[Request: Schema, Response: Schema](name: String): BidiStreaming[Request, Response] =
+    bidiStreaming(name, Schema[Request].derive(ProtobufDeriver), Schema[Response].derive(ProtobufDeriver))
+  def bidiStreaming[Request, Response](
+    name: String,
+    requestCodec: ProtobufCodec[Request],
+    responseCodec: ProtobufCodec[Response]
+  ): BidiStreaming[Request, Response] =
+    BidiStreaming(name)(using requestCodec, responseCodec)
 }

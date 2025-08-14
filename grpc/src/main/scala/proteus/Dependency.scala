@@ -17,7 +17,10 @@ case class Dependency(dependencyName: String, types: Set[ProtoIR.TopLevelDef] = 
     } else None
 
   def add[A: Schema]: Dependency =
-    copy(types = types ++ ProtobufCodec.toProtoIR(Schema[A].derive(ProtobufDeriver)))
+    add(Schema[A].derive(ProtobufDeriver))
+
+  def add[A](codec: ProtobufCodec[A]): Dependency =
+    copy(types = types ++ ProtobufCodec.toProtoIR(codec))
 
   def exclude(dependency: Dependency): Dependency =
     copy(types = types -- dependency.types, imports = ProtoIR.Statement.ImportStatement(dependency.dependencyName) :: imports)
