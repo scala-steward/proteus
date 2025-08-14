@@ -62,13 +62,13 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val clientBackend = new Fs2ClientBackend[IO](channel, dispatcher)
 
           val program = for {
-            clientFactory1 <- clientBackend.client(testService, complexRpc)
-            clientFactory2 <- clientBackend.client(testService, complexRpc)
-            clientFactory3 <- clientBackend.client(testService, complexRpc)
+            client1 <- clientBackend.client(testService, complexRpc)
+            client2 <- clientBackend.client(testService, complexRpc)
+            client3 <- clientBackend.client(testService, complexRpc)
 
-            response1 <- clientFactory1(sampleRequest)
-            response2 <- clientFactory2(sampleRequest.copy(contact = ContactMethod.Phone("555-0123", "US"), priority = Priority.Low))
-            response3 <- clientFactory3(sampleRequest.copy(contact = ContactMethod.Slack("my-workspace", "#general"), count = None))
+            response1 <- client1(sampleRequest)
+            response2 <- client2(sampleRequest.copy(contact = ContactMethod.Phone("555-0123", "US"), priority = Priority.Low))
+            response3 <- client3(sampleRequest.copy(contact = ContactMethod.Slack("my-workspace", "#general"), count = None))
           } yield (response1, response2, response3)
 
           program.guarantee {
@@ -101,8 +101,8 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           requestMetadata.put(Metadata.Key.of("user-agent", Metadata.ASCII_STRING_MARSHALLER), "grpc-fs2/1.0")
 
           val program = for {
-            clientFactory                <- clientBackend.clientWithMetadata(metadataService, metadataRpc)
-            (response, responseMetadata) <- clientFactory(MetadataRequest("hello fs2 metadata"), requestMetadata)
+            client                       <- clientBackend.clientWithMetadata(metadataService, metadataRpc)
+            (response, responseMetadata) <- client(MetadataRequest("hello fs2 metadata"), requestMetadata)
           } yield (response, responseMetadata)
 
           program.guarantee {
@@ -132,9 +132,9 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val clientBackend = new Fs2ClientBackend[IO](channel, dispatcher)
 
           val program = for {
-            clientFactory <- clientBackend.client(clientStreamingService, clientStreamingRpc)
+            client <- clientBackend.client(clientStreamingService, clientStreamingRpc)
             requestStream  = Stream(StreamRequest(1), StreamRequest(2), StreamRequest(3), StreamRequest(4))
-            response      <- clientFactory(requestStream)
+            response      <- client(requestStream)
           } yield response
 
           program.guarantee {
@@ -164,8 +164,8 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val clientBackend = new Fs2ClientBackend[IO](channel, dispatcher)
 
           val program = for {
-            clientFactory <- clientBackend.client(serverStreamingService, serverStreamingRpc)
-            responseStream = clientFactory(StreamRequest(5))
+            client <- clientBackend.client(serverStreamingService, serverStreamingRpc)
+            responseStream = client(StreamRequest(5))
             responses     <- responseStream.compile.toList
           } yield responses
 
@@ -196,9 +196,9 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val clientBackend = new Fs2ClientBackend[IO](channel, dispatcher)
 
           val program = for {
-            clientFactory <- clientBackend.client(bidiStreamingService, bidiStreamingRpc)
+            client <- clientBackend.client(bidiStreamingService, bidiStreamingRpc)
             requestStream  = Stream(StreamRequest(10), StreamRequest(20), StreamRequest(30))
-            responseStream = clientFactory(requestStream)
+            responseStream = client(requestStream)
             responses     <- responseStream.compile.toList
           } yield responses
 

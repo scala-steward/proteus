@@ -60,11 +60,11 @@ object ZioBackendSpec extends ZIOSpecDefault {
       val clientBackend = new ZioClientBackend(zChannel)
 
       val program = for {
-        clientFactory <- clientBackend.client(testService, complexRpc)
+        client <- clientBackend.client(testService, complexRpc)
 
-        response1 <- clientFactory(sampleRequest)
-        response2 <- clientFactory(sampleRequest.copy(contact = ContactMethod.Phone("555-0123", "US"), priority = Priority.Low))
-        response3 <- clientFactory(sampleRequest.copy(contact = ContactMethod.Slack("my-workspace", "#general"), count = None))
+        response1 <- client(sampleRequest)
+        response2 <- client(sampleRequest.copy(contact = ContactMethod.Phone("555-0123", "US"), priority = Priority.Low))
+        response3 <- client(sampleRequest.copy(contact = ContactMethod.Slack("my-workspace", "#general"), count = None))
       } yield (response1, response2, response3)
 
       program
@@ -86,8 +86,8 @@ object ZioBackendSpec extends ZIOSpecDefault {
       requestMetadata.put(Metadata.Key.of("user-agent", Metadata.ASCII_STRING_MARSHALLER), "grpc-zio/1.0")
 
       val program = for {
-        clientFactory                <- clientBackend.clientWithMetadata(metadataService, metadataRpc)
-        (response, responseMetadata) <- clientFactory(MetadataRequest("hello zio metadata"), requestMetadata)
+        client                       <- clientBackend.clientWithMetadata(metadataService, metadataRpc)
+        (response, responseMetadata) <- client(MetadataRequest("hello zio metadata"), requestMetadata)
       } yield (response, responseMetadata)
 
       program
@@ -105,9 +105,9 @@ object ZioBackendSpec extends ZIOSpecDefault {
       val clientBackend = new ZioClientBackend(zChannel)
 
       val program = for {
-        clientFactory <- clientBackend.client(streamingService, clientStreamingRpc)
+        client <- clientBackend.client(streamingService, clientStreamingRpc)
         requestStream  = ZStream(StreamRequest(1), StreamRequest(2), StreamRequest(3), StreamRequest(4))
-        response      <- clientFactory(requestStream)
+        response      <- client(requestStream)
       } yield response
 
       program
@@ -125,8 +125,8 @@ object ZioBackendSpec extends ZIOSpecDefault {
       val clientBackend = new ZioClientBackend(zChannel)
 
       val program = for {
-        clientFactory <- clientBackend.client(streamingService, serverStreamingRpc)
-        responseStream = clientFactory(StreamRequest(5))
+        client <- clientBackend.client(streamingService, serverStreamingRpc)
+        responseStream = client(StreamRequest(5))
         responses     <- responseStream.runCollect
       } yield responses
 
@@ -147,9 +147,9 @@ object ZioBackendSpec extends ZIOSpecDefault {
       val clientBackend = new ZioClientBackend(zChannel)
 
       val program = for {
-        clientFactory <- clientBackend.client(streamingService, bidiStreamingRpc)
+        client <- clientBackend.client(streamingService, bidiStreamingRpc)
         requestStream  = ZStream(StreamRequest(10), StreamRequest(20), StreamRequest(30))
-        responseStream = clientFactory(requestStream)
+        responseStream = client(requestStream)
         responses     <- responseStream.runCollect
       } yield responses
 
