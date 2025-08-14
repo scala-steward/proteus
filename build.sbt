@@ -49,7 +49,9 @@ lazy val grpc = project
   .settings(
     libraryDependencies ++=
       Seq(
-        "io.grpc" % "grpc-stub" % grpcVersion
+        "io.grpc" % "grpc-stub"     % grpcVersion,
+        "io.grpc" % "grpc-netty"    % grpcVersion % Test,
+        "io.grpc" % "grpc-services" % grpcVersion % Test
       )
   )
   .dependsOn(core)
