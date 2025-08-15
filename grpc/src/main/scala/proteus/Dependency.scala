@@ -4,7 +4,7 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorProto
 import com.google.protobuf.Descriptors.FileDescriptor
 import zio.blocks.schema.Schema
 
-case class Dependency(dependencyName: String, types: Set[ProtoIR.TopLevelDef] = Set.empty) {
+case class Dependency(dependencyName: String, types: Set[ProtoIR.TopLevelDef] = Set.empty, dependencies: List[Dependency] = Nil) {
   val fileDescriptor: Option[FileDescriptor] =
     if (types.nonEmpty) {
       val sharedFileBuilder = FileDescriptorProto.newBuilder().setName(s"$dependencyName").setPackage("")
@@ -25,7 +25,10 @@ case class Dependency(dependencyName: String, types: Set[ProtoIR.TopLevelDef] = 
   def hasAnyOf(typeNames: Set[String]): Boolean =
     types.exists(typeDef => typeNames.contains(typeDef.name))
 
-  def render(packageName: Option[String], options: List[ProtoIR.TopLevelOption], dependencies: Dependency*): String = {
+  def dependsOn(dependency: Dependency): Dependency =
+    copy(types = types -- dependency.types, dependencies = dependencies :+ dependency)
+
+  def render(packageName: Option[String], options: List[ProtoIR.TopLevelOption]): String = {
     val typeReferences       = types.flatMap(_.collectTypeReferences).toSet
     val filteredDependencies = dependencies.filter(_.hasAnyOf(typeReferences))
     val dependencyTypes      = filteredDependencies.flatMap(_.types).map(_.name).toSet

@@ -44,7 +44,7 @@ val complexRpc3     = Rpc.unary[ComplexRequest3, ComplexResponse3]("Complex3")
 val complexService3 = Service("ComplexService3").rpc(complexRpc3)
 
 val commonEntities = Dependency("common_entities.proto").add[MyEnum]
-val entities       = Dependency.fromServices("entities.proto", helloService, complexService, complexService2, complexService3)
+val entities       = Dependency.fromServices("entities.proto", helloService, complexService, complexService2, complexService3).dependsOn(commonEntities)
 
 val helloServerService = ServerServiceBuilder(using DirectServerBackend)
   .rpc(helloRpc, req => HelloResponse(s"Hello, ${req.name}"))
@@ -68,19 +68,20 @@ val complexServerService3 =
     .rpc(complexRpc3, req => ComplexResponse3(req.name, req.age, req.list, req.map, req.e, req.oneOf))
     .build(complexService3)
 
-val options = List(
+val options     = List(
   ProtoIR.TopLevelOption("java_package", "com.devsisters.ck.services.game.protobuf"),
   ProtoIR.TopLevelOption("csharp_namespace", "Services.Game.Protobuf")
 )
+val packageName = Some("ck.game")
 
 @main
 def mainComplexService: Unit = {
   val port = 8081
 
-  println(commonEntities.render(Some("ck.game"), options))
-  println(entities.render(Some("ck.game"), options, commonEntities))
-  println(helloService.render(Some("ck.game"), options, commonEntities, entities))
-  println(complexService.render(Some("ck.game"), options, commonEntities, entities))
+  println(commonEntities.render(packageName, options))
+  println(entities.render(packageName, options))
+  println(helloService.render(packageName, options, commonEntities, entities))
+  println(complexService.render(packageName, options, commonEntities, entities))
 
   val builder = NettyServerBuilder.forPort(port).addService(ProtoReflectionServiceV1.newInstance())
   builder.addService(helloServerService.definition)
