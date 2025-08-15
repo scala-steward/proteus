@@ -31,23 +31,20 @@ case class ComplexResponse2(name: String, age: Int, list: List[Int], map: Map[St
 case class ComplexRequest3(name: String, age: Int, list: List[Int], map: Map[String, Int], e: MyEnum, oneOf: MyOneOf) derives Schema
 case class ComplexResponse3(name: String, age: Int, list: List[Int], map: Map[String, Int], e: MyEnum, oneOf: MyOneOf) derives Schema
 
-val commonEntities = Import("common_entities.proto")
-val entities       = Import("entities.proto")
-
 val helloRpc     = Rpc.unary[HelloRequest, HelloResponse]("Hello")
 val helloService = Service("HelloService").rpc(helloRpc)
 
 val complexRpc     = Rpc.unary[ComplexRequest, ComplexResponse]("Complex")
-val complexService = Service("ComplexService").imports(commonEntities).imports(entities).rpc(complexRpc)
+val complexService = Service("ComplexService").rpc(complexRpc)
 
 val complexRpc2     = Rpc.unary[ComplexRequest2, ComplexResponse2]("Complex2")
-val complexService2 = Service("ComplexService2").imports(commonEntities).imports(entities).rpc(complexRpc2)
+val complexService2 = Service("ComplexService2").rpc(complexRpc2)
 
 val complexRpc3     = Rpc.unary[ComplexRequest3, ComplexResponse3]("Complex3")
-val complexService3 = Service("ComplexService3").imports(commonEntities).imports(entities).rpc(complexRpc3)
+val complexService3 = Service("ComplexService3").rpc(complexRpc3)
 
-val commonEntitiesDep = commonEntities.toDependency.add[MyEnum]
-val entitiesDep       = entities.toDependency(helloService, complexService, complexService2, complexService3).dependsOn(commonEntitiesDep)
+val commonEntities = Dependency("common_entities.proto").add[MyEnum]
+val entities       = Dependency.fromServices("entities.proto", helloService, complexService, complexService2, complexService3)
 
 val helloServerService = ServerServiceBuilder(using DirectServerBackend)
   .rpc(helloRpc, req => HelloResponse(s"Hello, ${req.name}"))
@@ -55,22 +52,19 @@ val helloServerService = ServerServiceBuilder(using DirectServerBackend)
 
 val complexServerService =
   ServerServiceBuilder(using DirectServerBackend)
-    .dependsOn(commonEntitiesDep)
-    .dependsOn(entitiesDep)
+    .dependsOn(commonEntities, entities)
     .rpc(complexRpc, req => ComplexResponse(req.name, req.age, req.list, req.map, req.e, req.oneOf))
     .build(complexService)
 
 val complexServerService2 =
   ServerServiceBuilder(using DirectServerBackend)
-    .dependsOn(commonEntitiesDep)
-    .dependsOn(entitiesDep)
+    .dependsOn(commonEntities, entities)
     .rpc(complexRpc2, req => ComplexResponse2(req.name, req.age, req.list, req.map, req.e, req.oneOf))
     .build(complexService2)
 
 val complexServerService3 =
   ServerServiceBuilder(using DirectServerBackend)
-    .dependsOn(commonEntitiesDep)
-    .dependsOn(entitiesDep)
+    .dependsOn(commonEntities, entities)
     .rpc(complexRpc3, req => ComplexResponse3(req.name, req.age, req.list, req.map, req.e, req.oneOf))
     .build(complexService3)
 
@@ -83,9 +77,10 @@ val options = List(
 def mainComplexService: Unit = {
   val port = 8081
 
-  println(commonEntitiesDep.render(Some("ck.game"), options))
-  println(entitiesDep.render(Some("ck.game"), options))
-  println(helloService.render(Some("ck.game"), options))
+  println(commonEntities.render(Some("ck.game"), options))
+  println(entities.render(Some("ck.game"), options, commonEntities))
+  println(helloService.render(Some("ck.game"), options, commonEntities, entities))
+  println(complexService.render(Some("ck.game"), options, commonEntities, entities))
 
   val builder = NettyServerBuilder.forPort(port).addService(ProtoReflectionServiceV1.newInstance())
   builder.addService(helloServerService.definition)

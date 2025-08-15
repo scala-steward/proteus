@@ -8,7 +8,7 @@ import io.grpc.protobuf.ProtoFileDescriptorSupplier
 case class ServerService[Unary[_], Streaming[_], Context](
   service: Service[?],
   rpcs: List[ServerRpc[Unary, Streaming, Context, ?, ?]],
-  dependencies: List[Dependency[?]]
+  dependencies: List[Dependency]
 )(using backend: ServerBackend[Unary, Streaming, Context]) {
   val fileDescriptor: FileDescriptor = service.fileDescriptor(dependencies)
 

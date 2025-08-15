@@ -15,27 +15,43 @@ object ProtoIR {
 
   sealed trait TopLevelDef {
     def name: String
+    def collectTypeReferences: Set[String]
   }
   object TopLevelDef       {
     final case class MessageDef(message: Message) extends TopLevelDef {
-      def name: String = message.name
+      def name: String                       = message.name
+      def collectTypeReferences: Set[String] = message.collectTypeReferences + name
     }
     final case class EnumDef(enumValue: Enum)     extends TopLevelDef {
-      def name: String = enumValue.name
+      def name: String                       = enumValue.name
+      def collectTypeReferences: Set[String] = Set(name)
     }
     final case class ServiceDef(service: Service) extends TopLevelDef {
-      def name: String = service.name
+      def name: String                       = service.name
+      def collectTypeReferences: Set[String] = service.rpcs.flatMap(rpc => Set(rpc.request.fqn.name, rpc.response.fqn.name)).toSet
     }
   }
 
-  final case class Message(name: String, elements: List[MessageElement], reserved: List[Reserved])
+  final case class Message(name: String, elements: List[MessageElement], reserved: List[Reserved]) {
+    lazy val collectTypeReferences: Set[String] = elements.toSet.flatMap(_.collectTypeReferences)
+  }
 
-  sealed trait MessageElement
-  object MessageElement {
-    final case class FieldElement(field: Field)             extends MessageElement
-    final case class EnumDefElement(enumValue: Enum)        extends MessageElement
-    final case class OneofElement(oneof: Oneof)             extends MessageElement
-    final case class NestedMessageElement(message: Message) extends MessageElement
+  sealed trait MessageElement {
+    def collectTypeReferences: Set[String]
+  }
+  object MessageElement       {
+    final case class FieldElement(field: Field)             extends MessageElement {
+      def collectTypeReferences: Set[String] = field.ty.collectTypeReferences
+    }
+    final case class EnumDefElement(enumValue: Enum)        extends MessageElement {
+      def collectTypeReferences: Set[String] = Set.empty
+    }
+    final case class OneofElement(oneof: Oneof)             extends MessageElement {
+      def collectTypeReferences: Set[String] = oneof.fields.flatMap(_.ty.collectTypeReferences).toSet
+    }
+    final case class NestedMessageElement(message: Message) extends MessageElement {
+      def collectTypeReferences: Set[String] = message.collectTypeReferences
+    }
   }
 
   final case class Oneof(name: String, fields: List[Field])
@@ -50,11 +66,7 @@ object ProtoIR {
   }
 
   case class EnumValue(name: String, intValue: Int)
-  case class Enum(
-    name: String,
-    values: List[EnumValue],
-    reserved: List[Reserved]
-  )
+  case class Enum(name: String, values: List[EnumValue], reserved: List[Reserved])
 
   final case class Service(name: String, rpcs: List[Rpc])
 
@@ -62,8 +74,17 @@ object ProtoIR {
 
   final case class Rpc(name: String, request: RpcMessage, response: RpcMessage, streamingRequest: Boolean, streamingResponse: Boolean)
 
-  sealed trait Type
-  object Type {
+  sealed trait Type { self =>
+    def collectTypeReferences: Set[String] =
+      self match {
+        case _: ProtoIR.Type.PrimitiveType            => Set.empty
+        case ProtoIR.Type.MapType(keyType, valueType) => keyType.collectTypeReferences ++ valueType.collectTypeReferences
+        case ProtoIR.Type.ListType(valueType)         => valueType.collectTypeReferences
+        case ProtoIR.Type.RefType(fqn)                => Set(fqn.name)
+        case ProtoIR.Type.EnumRefType(fqn)            => Set(fqn.name)
+      }
+  }
+  object Type       {
     sealed trait PrimitiveType extends Type
 
     case object Double   extends PrimitiveType
