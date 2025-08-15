@@ -3,7 +3,7 @@ package server
 
 case class ServerServiceBuilder[Unary[_], Streaming[_], Context, Rpcs] private (
   serverRpcs: List[ServerRpc[Unary, Streaming, Context, ?, ?]],
-  dependencies: List[Dependency] = Nil
+  dependencies: List[Dependency[?]] = Nil
 )(
   using val backend: ServerBackend[Unary, Streaming, Context]
 ) {
@@ -55,11 +55,11 @@ case class ServerServiceBuilder[Unary[_], Streaming[_], Context, Rpcs] private (
   ): ServerServiceBuilder[Unary, Streaming, Context, Rpcs & rpc.type] =
     ServerServiceBuilder(serverRpcs :+ server.ServerRpc.BidiStreaming(rpc, logic(_, _)))
 
-  def dependsOn(dependency: Dependency*): ServerServiceBuilder[Unary, Streaming, Context, Rpcs] =
-    copy(dependencies = dependencies ++ dependency)
+  def dependsOn[A](dependency: Dependency[A]): ServerServiceBuilder[Unary, Streaming, Context, Rpcs & A] =
+    copy(dependencies = this.dependencies :+ dependency)
 
   def build(service: Service[Rpcs]): ServerService[Unary, Streaming, Context] =
-    ServerService(service.dependsOn(dependencies), serverRpcs)(using backend)
+    ServerService(service, serverRpcs, dependencies)(using backend)
 }
 
 object ServerServiceBuilder {

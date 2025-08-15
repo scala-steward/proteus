@@ -10,7 +10,7 @@ import io.grpc.*
 
 class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F]) extends ClientBackend[F, Stream[F, *]] {
   def client[Request, Response](service: Service[?], rpc: Rpc.Unary[Request, Response]): F[Request => F[Response]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor)
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor(Nil))
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, ClientOptions.default)
       .map(call => call.unaryToUnaryCall(_, new Metadata()))
   }
@@ -19,7 +19,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     service: Service[?],
     rpc: Rpc.ClientStreaming[Request, Response]
   ): F[Stream[F, Request] => F[Response]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor)
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor(Nil))
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, ClientOptions.default)
       .map(call => call.streamingToUnaryCall(_, new Metadata()))
   }
@@ -28,7 +28,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     service: Service[?],
     rpc: Rpc.ServerStreaming[Request, Response]
   ): F[Request => Stream[F, Response]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor)
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor(Nil))
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, ClientOptions.default)
       .map(call => call.unaryToStreamingCall(_, new Metadata()))
   }
@@ -37,7 +37,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     service: Service[?],
     rpc: Rpc.BidiStreaming[Request, Response]
   ): F[Stream[F, Request] => Stream[F, Response]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor)
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor(Nil))
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, ClientOptions.default)
       .map(call => call.streamingToStreamingCall(_, new Metadata()))
   }
@@ -46,7 +46,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     service: Service[?],
     rpc: Rpc.Unary[Request, Response]
   ): F[(Request, Metadata) => F[(Response, Metadata)]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor)
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor(Nil))
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, ClientOptions.default)
       .map(call => call.unaryToUnaryCallTrailers(_, _))
   }
@@ -55,7 +55,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     service: Service[?],
     rpc: Rpc.ClientStreaming[Request, Response]
   ): F[(Stream[F, Request], Metadata) => F[(Response, Metadata)]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor)
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor(Nil))
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, ClientOptions.default)
       .map(call => call.streamingToUnaryCallTrailers(_, _))
   }
@@ -64,7 +64,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     service: Service[?],
     rpc: Rpc.ServerStreaming[Request, Response]
   ): F[(Request, Metadata) => Stream[F, Response]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor)
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor(Nil))
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, ClientOptions.default)
       .map(call => call.unaryToStreamingCall(_, _))
   }
@@ -73,7 +73,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     service: Service[?],
     rpc: Rpc.BidiStreaming[Request, Response]
   ): F[(Stream[F, Request], Metadata) => Stream[F, Response]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor)
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.fileDescriptor(Nil))
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, ClientOptions.default)
       .map(call => call.streamingToStreamingCall(_, _))
   }

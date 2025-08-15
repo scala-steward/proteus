@@ -4,15 +4,13 @@ import scala.jdk.CollectionConverters.*
 
 import com.google.protobuf.DescriptorProtos.*
 import com.google.protobuf.Descriptors.FileDescriptor
-import io.grpc.*
-import io.grpc.protobuf.ProtoFileDescriptorSupplier
 
-case class Service[Rpcs] private (name: String, rpcs: List[Rpc[?, ?]], dependencies: List[Dependency] = Nil) {
+case class Service[Rpcs] private (name: String, rpcs: List[Rpc[?, ?]], imports: List[Import]) {
   val toProtoIR: List[ProtoIR.TopLevelDef] =
     (ProtoIR.TopLevelDef.ServiceDef(ProtoIR.Service(name, rpcs.map(_.toProtoIR))) ::
       rpcs.flatMap(_.messagesToProtoIR)).distinct
 
-  val fileDescriptor: FileDescriptor = {
+  def fileDescriptor(dependencies: List[Dependency[?]]): FileDescriptor = {
     val fileBuilder = FileDescriptorProto.newBuilder().setName(s"${name.toLowerCase}.proto").setPackage("")
 
     val dependencyFileDescriptors = dependencies.flatMap(_.fileDescriptor)
@@ -31,32 +29,18 @@ case class Service[Rpcs] private (name: String, rpcs: List[Rpc[?, ?]], dependenc
     FileDescriptor.buildFrom(fileBuilder.build(), dependencyFileDescriptors.toArray)
   }
 
-  val methodDescriptors: List[MethodDescriptor[?, ?]] =
-    rpcs.sortBy(_.name).map(_.toMethodDescriptor(name, fileDescriptor))
-
-  val serviceDescriptor: ServiceDescriptor =
-    methodDescriptors
-      .foldLeft(
-        ServiceDescriptor
-          .newBuilder(name)
-          .setSchemaDescriptor(new ProtoFileDescriptorSupplier {
-            def getFileDescriptor: FileDescriptor = fileDescriptor
-          })
-      )((builder, methodDescriptor) => builder.addMethod(methodDescriptor))
-      .build()
+  def imports(`import`: Import): Service[Rpcs & `import`.type] =
+    copy(imports = this.imports :+ `import`)
 
   def rpc[Request, Response](rpc: Rpc[Request, Response]): Service[Rpcs & rpc.type] =
-    Service(name, rpcs :+ rpc)
-
-  def dependsOn(dependencies: List[Dependency]): Service[Rpcs] =
-    copy(dependencies = dependencies)
+    Service(name, rpcs :+ rpc, imports)
 
   def render(packageName: Option[String], options: List[ProtoIR.TopLevelOption]): String =
     Renderer.render(
       ProtoIR.CompilationUnit(
         packageName = packageName,
         options = options,
-        statements = dependencies.map(dependency => ProtoIR.Statement.ImportStatement(dependency.dependencyName)) ++
+        statements = imports.map(i => ProtoIR.Statement.ImportStatement(i.name)) ++
           toProtoIR.map(ProtoIR.Statement.TopLevelStatement(_))
       )
     )
@@ -64,5 +48,5 @@ case class Service[Rpcs] private (name: String, rpcs: List[Rpc[?, ?]], dependenc
 
 object Service {
   def apply(name: String): Service[Any] =
-    Service(name, List.empty)
+    Service(name, List.empty, List.empty)
 }

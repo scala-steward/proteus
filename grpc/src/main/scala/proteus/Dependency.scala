@@ -4,8 +4,12 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorProto
 import com.google.protobuf.Descriptors.FileDescriptor
 import zio.blocks.schema.Schema
 
-case class Dependency(dependencyName: String, types: Set[ProtoIR.TopLevelDef] = Set.empty, imports: List[ProtoIR.Statement.ImportStatement] = Nil) {
-  def fileDescriptor: Option[FileDescriptor] =
+case class Dependency[Import](
+  dependencyName: String,
+  types: Set[ProtoIR.TopLevelDef] = Set.empty,
+  imports: List[ProtoIR.Statement.ImportStatement] = Nil
+) {
+  val fileDescriptor: Option[FileDescriptor] =
     if (types.nonEmpty) {
       val sharedFileBuilder = FileDescriptorProto.newBuilder().setName(s"$dependencyName").setPackage("")
       types.foreach {
@@ -16,13 +20,13 @@ case class Dependency(dependencyName: String, types: Set[ProtoIR.TopLevelDef] = 
       Some(FileDescriptor.buildFrom(sharedFileBuilder.build(), Array.empty))
     } else None
 
-  def add[A: Schema]: Dependency =
+  def add[A: Schema]: Dependency[Import] =
     add(Schema[A].derive(ProtobufDeriver))
 
-  def add[A](codec: ProtobufCodec[A]): Dependency =
+  def add[A](codec: ProtobufCodec[A]): Dependency[Import] =
     copy(types = types ++ ProtobufCodec.toProtoIR(codec))
 
-  def dependsOn(dependency: Dependency): Dependency =
+  def dependsOn(dependency: Dependency[?]): Dependency[Import] =
     copy(types = types -- dependency.types, imports = ProtoIR.Statement.ImportStatement(dependency.dependencyName) :: imports)
 
   def render(packageName: Option[String], options: List[ProtoIR.TopLevelOption]): String =
@@ -33,21 +37,4 @@ case class Dependency(dependencyName: String, types: Set[ProtoIR.TopLevelDef] = 
         statements = imports ++ types.map(ProtoIR.Statement.TopLevelStatement(_)).toList.sortBy(_.s.name)
       )
     )
-}
-
-object Dependency {
-  def fromServices(dependencyName: String, services: Service[?]*): Dependency = {
-    val allTypes = services.flatMap(_.toProtoIR).toSet
-
-    val requestResponseTypeNames =
-      services.flatMap(_.rpcs.flatMap(rpc => List(rpc.toProtoIR.request.fqn.name, rpc.toProtoIR.response.fqn.name))).toSet
-
-    val commonTypes = allTypes.filterNot {
-      case ProtoIR.TopLevelDef.MessageDef(msg)  => requestResponseTypeNames.contains(msg.name)
-      case ProtoIR.TopLevelDef.EnumDef(enumDef) => requestResponseTypeNames.contains(enumDef.name)
-      case ProtoIR.TopLevelDef.ServiceDef(_)    => true
-    }
-
-    Dependency(dependencyName, commonTypes)
-  }
 }
