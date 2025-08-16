@@ -84,26 +84,16 @@ object Renderer {
       )
     }
 
-    // required
-    // int32 i = 1;
-    // Message message = 1;
-
-    // domain protocol - optional
-    // optional int32 i = 1;
-    // Message message = 1 ;
-
-    // service protocol - optional
-    // oneof
-
     def renderField(field: Field, isOneof: Boolean = false): Text = {
-      val ty                  = renderType(field.ty)
-      val deprecated          = if (field.deprecated) " [deprecated = true]" else ""
-      val (optional, nonNull) = field.ty match {
-        case _: Type.PrimitiveType => (if (field.optional && !isOneof) "optional " else "", "")
-        case _: Type.RefType       => ("", if (field.optional || isOneof) "" else " [(ck.opts).not_null = true]")
-        case _                     => ("", "")
+      val ty         = renderType(field.ty)
+      val deprecated = if (field.deprecated) " [deprecated = true]" else ""
+      val optional   = field.ty match {
+        case _: Type.PrimitiveType | _: Type.RefType | _: Type.EnumRefType =>
+          if (field.optional && !isOneof) "optional " else ""
+        case _: Type.ListType | _: Type.MapType                            =>
+          ""
       }
-      statement(s"$optional$ty ${field.name} = ${field.number}$deprecated$nonNull")
+      statement(s"$optional$ty ${field.name} = ${field.number}$deprecated")
     }
 
     def renderService(service: Service): Text =
