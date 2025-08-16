@@ -93,6 +93,7 @@ object Renderer {
         case _: Type.RefType | _: Type.ListType | _: Type.MapType =>
           ""
       }
+      // TODO support marker for required fields
       statement(s"$optional$ty ${field.name} = ${field.number}$deprecated")
     }
 
