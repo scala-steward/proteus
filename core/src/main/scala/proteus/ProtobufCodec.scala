@@ -84,22 +84,22 @@ object ProtobufCodec {
       primitiveType match {
         case _: PrimitiveType.Int     =>
           val value: Int = a
-          if (value == 0 && id != -1 && !alwaysEncode) null else internal.ProtobufWriter.IntPrimitive(value, id)
+          if (value == 0 && !alwaysEncode) null else internal.ProtobufWriter.IntPrimitive(value, id)
         case _: PrimitiveType.Long    =>
           val value: Long = a
-          if (value == 0L && id != -1 && !alwaysEncode) null else internal.ProtobufWriter.LongPrimitive(value, id)
+          if (value == 0L && !alwaysEncode) null else internal.ProtobufWriter.LongPrimitive(value, id)
         case _: PrimitiveType.Boolean =>
           val value: Boolean = a
-          if (!value && id != -1 && !alwaysEncode) null else internal.ProtobufWriter.BoolPrimitive(value, id)
+          if (!value && !alwaysEncode) null else internal.ProtobufWriter.BoolPrimitive(value, id)
         case _: PrimitiveType.String  =>
           val value: String = a
-          if (value == "" && id != -1 && !alwaysEncode) null else internal.ProtobufWriter.StringPrimitive(value, id)
+          if (value == "" && !alwaysEncode) null else internal.ProtobufWriter.StringPrimitive(value, id)
         case _: PrimitiveType.Double  =>
           val value: Double = a
-          if (value == 0d && id != -1 && !alwaysEncode) null else internal.ProtobufWriter.DoublePrimitive(value, id)
+          if (value == 0d && !alwaysEncode) null else internal.ProtobufWriter.DoublePrimitive(value, id)
         case _: PrimitiveType.Float   =>
           val value: Float = a
-          if (value == 0f && id != -1 && !alwaysEncode) null else internal.ProtobufWriter.FloatPrimitive(value, id)
+          if (value == 0f && !alwaysEncode) null else internal.ProtobufWriter.FloatPrimitive(value, id)
         case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
       }
   }
