@@ -19,8 +19,8 @@ case class Dependency private (dependencyName: String, types: Set[ProtoIR.TopLev
       Some(FileDescriptor.buildFrom(sharedFileBuilder.build(), filteredDependencies.flatMap(_.fileDescriptor).toArray))
     } else None
 
-  def add[A: Schema]: Dependency =
-    add(Schema[A].derive(ProtobufDeriver))
+  def add[A: Schema](using deriver: ProtobufDeriver): Dependency =
+    add(Schema[A].derive(deriver))
 
   def add[A](codec: ProtobufCodec[A]): Dependency = {
     val t = ProtobufCodec.toProtoIR(codec)

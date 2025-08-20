@@ -8,9 +8,10 @@ import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.*
 import zio.blocks.schema.derive.*
 
+import proteus.ProtobufDeriver.*
 import proteus.internal.*
 
-object ProtobufDeriver extends Deriver[ProtobufCodec] {
+class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[ProtobufCodec] {
 
   def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
@@ -57,7 +58,7 @@ object ProtobufDeriver extends Deriver[ProtobufCodec] {
 
           def getField[A](index: Int, field: TermInstance[F, A] /*, annotations: List[Any]*/ ): Unit =
             field.instance match {
-              case ProtobufCodec.Message(_, fields, _, _, _, _, true, _) =>
+              case ProtobufCodec.Message(_, fields, _, _, _, _, true, _)                                 =>
                 val idIterator = Iterator.empty // annotations.collectFirst { case reserved(numbers*) => numbers.iterator }.getOrElse(Iterator.empty)
                 fields.foreach { f =>
                   val caseId =
@@ -69,7 +70,32 @@ object ProtobufDeriver extends Deriver[ProtobufCodec] {
                     }
                   builder += f.copy(id = id, register = registers(index), oneOfName = Some(toSnakeCase(field.term.name)))
                 }
-              case instance                                              =>
+              case optional: ProtobufCodec.Optional[a] if flags.contains(DerivationFlag.OptionalAsOneOf) =>
+                // add empty case
+                id += 1
+                while (reservedIndexes.contains(id)) id += 1
+                builder += ProtobufCodec.MessageField[A](
+                  s"no_${toSnakeCase(field.term.name)}",
+                  id,
+                  Empty.emptyCodec.transform(_ => None, _ => Empty()),
+                  registers(index),
+                  v => if (v == None) None else null,
+                  null,
+                  Some(toSnakeCase(field.term.name))
+                )
+                // add value case
+                id += 1
+                while (reservedIndexes.contains(id)) id += 1
+                builder += ProtobufCodec.MessageField[A](
+                  s"${toSnakeCase(field.term.name)}_value",
+                  id,
+                  optional.codec.transform(Some(_), _.get),
+                  registers(index),
+                  v => if (v.isInstanceOf[Some[a]]) v.asInstanceOf[A] else null.asInstanceOf[A],
+                  null,
+                  Some(toSnakeCase(field.term.name))
+                )
+              case instance                                                                              =>
                 id += 1
                 while (reservedIndexes.contains(id)) id += 1
                 builder += ProtobufCodec.MessageField(
@@ -312,6 +338,13 @@ object ProtobufDeriver extends Deriver[ProtobufCodec] {
 
   private def toUpperSnakeCase(s: String): String =
     s.split("(?=[A-Z])").map(_.toUpperCase).mkString("_")
+
+}
+
+object ProtobufDeriver {
+  enum DerivationFlag {
+    case OptionalAsOneOf
+  }
 
   case class TermInstance[F[_, _], A](term: Term[F, ?, A], instance: ProtobufCodec[A])
 }

@@ -62,9 +62,11 @@ class ProtobufCodecBenchmark {
 
   case class Time(currentTimeMillis: Long) derives Schema
 
+  val deriver = ProtobufDeriver()
+
   val dateTimeCodec: ProtobufCodec[DateTime] =
     Schema[Time]
-      .derive(ProtobufDeriver)
+      .derive(deriver)
       .transform[DateTime](
         wrapper => {
           val millis = wrapper.currentTimeMillis
@@ -73,7 +75,7 @@ class ProtobufCodecBenchmark {
         dt => Time(dt.toEpochMilli)
       )
 
-  val codec = Schema[A].deriving(ProtobufDeriver).instance(TypeName.offsetDateTime, dateTimeCodec).derive
+  val codec = Schema[A].deriving(deriver).instance(TypeName.offsetDateTime, dateTimeCodec).derive
 
   val encodedSimple  = codec.encode(simpleData)
   val encodedComplex = codec.encode(complexData)
