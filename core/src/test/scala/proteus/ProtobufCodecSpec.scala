@@ -29,6 +29,12 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
   case class DateTimeWrapper(currentTimeMillis: Long) derives Schema
 
+  opaque type UserId = String
+  object UserId {
+    def apply(value: String): UserId = value
+    extension (userId: UserId) def value: String = userId
+  }
+
   val deriver                    = ProtobufDeriver()
   val deriverWithOptionalAsOneOf = ProtobufDeriver(Set(ProtobufDeriver.DerivationFlag.OptionalAsOneOf))
 
@@ -429,6 +435,18 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         val original = EmptyStrings("", "")
         val encoded  = codec.encode(original)
         val decoded  = codec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
+      }
+    ),
+    suite("Opaque Types")(
+      test("opaque type wrapper") {
+        case class UserMessage(id: UserId, name: String) derives Schema
+        val codec = Schema[UserMessage].derive(deriver)
+
+        val original = UserMessage(UserId("user-123"), "John Doe")
+        val encoded = codec.encode(original)
+        val decoded = codec.decode(encoded)
 
         assert(decoded)(equalTo(original))
       }
