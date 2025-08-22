@@ -15,13 +15,12 @@ object RenderSpec extends ZIOSpecDefault {
   given deriver: ProtobufDeriver = ProtobufDeriver()
 
   val sharedRpc         = Rpc.unary[RequestWithShared, ResponseWithShared]("ProcessShared")
-  val serviceWithShared = Service("ServiceWithShared").rpc(sharedRpc)
+  val serviceWithShared = Service("test.package", "ServiceWithShared").rpc(sharedRpc)
 
   val sharedDep = Dependency("shared.proto").add[SharedMessage]
   val unusedDep = Dependency("unused.proto").add[UnusedMessage]
 
-  val packageName = Some("test.package")
-  val options     = List(
+  val options = List(
     ProtoIR.TopLevelOption("java_package", "com.test.proto"),
     ProtoIR.TopLevelOption("csharp_namespace", "Test.Proto")
   )
@@ -29,7 +28,7 @@ object RenderSpec extends ZIOSpecDefault {
   def spec = suite("RenderSpec")(
     suite("Service Rendering")(
       test("should only include used dependencies in rendered proto") {
-        val renderedProto = serviceWithShared.render(packageName, options, sharedDep, unusedDep)
+        val renderedProto = serviceWithShared.render(options, sharedDep, unusedDep)
 
         assertTrue(
           renderedProto.contains("import \"shared.proto\";") &&
@@ -43,7 +42,7 @@ object RenderSpec extends ZIOSpecDefault {
         val contactDep  = Dependency("contact.proto").add[ContactMethod]
         val addressDep  = Dependency("address.proto").add[Address]
 
-        val renderedProto = testService.render(packageName, options, priorityDep, contactDep, addressDep)
+        val renderedProto = testService.render(options, priorityDep, contactDep, addressDep)
 
         assertTrue(
           renderedProto.contains("import \"priority.proto\";") &&
@@ -57,7 +56,7 @@ object RenderSpec extends ZIOSpecDefault {
         val unusedDep1 = Dependency("unused1.proto").add[UnusedMessage]
         val unusedDep2 = Dependency("unused2.proto").add[SharedMessage]
 
-        val renderedProto = metadataService.render(packageName, options, unusedDep1, unusedDep2)
+        val renderedProto = metadataService.render(options, unusedDep1, unusedDep2)
 
         assertTrue(
           !renderedProto.contains("import \"unused1.proto\";") &&
@@ -67,7 +66,7 @@ object RenderSpec extends ZIOSpecDefault {
         )
       },
       test("should include package name and options in rendered proto") {
-        val renderedProto = testService.render(packageName, options)
+        val renderedProto = testService.render(options)
 
         assertTrue(
           renderedProto.contains("package test.package;") &&
@@ -81,7 +80,7 @@ object RenderSpec extends ZIOSpecDefault {
           .add[ContactMethod]
           .add[Address]
 
-        val renderedProto = testService.render(packageName, options, complexDep)
+        val renderedProto = testService.render(options, complexDep)
 
         assertTrue(
           renderedProto.contains("import \"complex_types.proto\";") &&
@@ -93,7 +92,7 @@ object RenderSpec extends ZIOSpecDefault {
       test("should handle streaming services with type dependencies") {
         val streamDep = Dependency("stream_types.proto").add[StreamRequest].add[StreamResponse]
 
-        val renderedProto = streamingService.render(packageName, options, streamDep)
+        val renderedProto = streamingService.render(options, streamDep)
 
         assertTrue(
           renderedProto.contains("import \"stream_types.proto\";") &&
@@ -109,7 +108,7 @@ object RenderSpec extends ZIOSpecDefault {
         val unusedDep   = Dependency("unused.proto").add[UnusedMessage]
 
         val service         = Service("TestService").rpc(Rpc.unary[ComplexRequest, ComplexResponse]("Test"))
-        val serviceRendered = service.render(packageName, options, priorityDep, addressDep, unusedDep)
+        val serviceRendered = service.render(options, priorityDep, addressDep, unusedDep)
 
         assertTrue(
           serviceRendered.contains("import \"priority.proto\";") &&
@@ -126,7 +125,7 @@ object RenderSpec extends ZIOSpecDefault {
         val unusedDep = Dependency("unused.proto").add[UnusedMessage]
 
         val service         = Service("SimpleService").rpc(Rpc.unary[RequestWithShared, ResponseWithShared]("Process"))
-        val serviceRendered = service.render(packageName, options, sharedDep, unusedDep)
+        val serviceRendered = service.render(options, sharedDep, unusedDep)
 
         assertTrue(
           serviceRendered.contains("import \"shared.proto\";") &&
@@ -140,8 +139,8 @@ object RenderSpec extends ZIOSpecDefault {
     ),
     suite("Dependency Rendering")(
       test("should render dependency with simple types") {
-        val simpleDep = Dependency("simple.proto").add[SharedMessage]
-        val rendered  = simpleDep.render(packageName, options)
+        val simpleDep = Dependency("test.package", "simple.proto").add[SharedMessage]
+        val rendered  = simpleDep.render(options)
 
         assertTrue(
           rendered.contains("package test.package;") &&
@@ -154,7 +153,7 @@ object RenderSpec extends ZIOSpecDefault {
       },
       test("should render dependency with enum types") {
         val enumDep  = Dependency("enums.proto").add[Priority]
-        val rendered = enumDep.render(packageName, options)
+        val rendered = enumDep.render(options)
 
         assertTrue(
           rendered.contains("enum Priority") &&
@@ -168,7 +167,7 @@ object RenderSpec extends ZIOSpecDefault {
         val complexDep = Dependency("complex.proto")
           .add[Address]
           .add[ContactMethod]
-        val rendered   = complexDep.render(packageName, options)
+        val rendered   = complexDep.render(options)
 
         assertTrue(
           rendered.contains("message Address") &&
@@ -188,7 +187,7 @@ object RenderSpec extends ZIOSpecDefault {
           .dependsOn(baseDep)
           .dependsOn(unusedDep)
 
-        val rendered = mainDep.render(packageName, options)
+        val rendered = mainDep.render(options)
 
         assertTrue(
           rendered.contains("import \"base.proto\";") &&
@@ -208,7 +207,7 @@ object RenderSpec extends ZIOSpecDefault {
           .dependsOn(addressDep)
           .dependsOn(contactDep)
 
-        val rendered = mainDep.render(packageName, options)
+        val rendered = mainDep.render(options)
 
         assertTrue(
           rendered.contains("import \"priority.proto\";") &&
@@ -220,8 +219,8 @@ object RenderSpec extends ZIOSpecDefault {
         )
       },
       test("should render empty dependency without types") {
-        val emptyDep = Dependency("empty.proto")
-        val rendered = emptyDep.render(packageName, options)
+        val emptyDep = Dependency("test.package", "empty.proto")
+        val rendered = emptyDep.render(options)
 
         assertTrue(
           rendered.contains("package test.package;") &&
@@ -237,7 +236,7 @@ object RenderSpec extends ZIOSpecDefault {
         val level2 = Dependency("level2.proto").add[RequestWithShared].dependsOn(level1)
         val level3 = Dependency("level3.proto").add[ResponseWithShared].dependsOn(level1)
 
-        val rendered = level3.render(packageName, options)
+        val rendered = level3.render(options)
 
         assertTrue(
           rendered.contains("import \"level1.proto\";") &&
@@ -250,7 +249,7 @@ object RenderSpec extends ZIOSpecDefault {
           .add[Address] // Message starting with A
           .add[ContactMethod] // Message starting with C
 
-        val rendered      = multiTypeDep.render(packageName, options)
+        val rendered      = multiTypeDep.render(options)
         val addressIndex  = rendered.indexOf("message Address")
         val contactIndex  = rendered.indexOf("message ContactMethod")
         val priorityIndex = rendered.indexOf("enum Priority")
@@ -266,7 +265,7 @@ object RenderSpec extends ZIOSpecDefault {
         val service2 = Service("Service2").rpc(Rpc.unary[ComplexRequest, ComplexResponse]("Method2"))
 
         val dependency = Dependency.fromServices("common.proto", service1, service2)
-        val rendered   = dependency.render(packageName, options)
+        val rendered   = dependency.render(options)
 
         assertTrue(
           rendered.contains("enum Priority") &&
@@ -281,7 +280,7 @@ object RenderSpec extends ZIOSpecDefault {
         val testService = Service("TestService").rpc(testRpc)
 
         val dependency = Dependency.fromServices("shared.proto", testService)
-        val rendered   = dependency.render(packageName, options)
+        val rendered   = dependency.render(options)
 
         assertTrue(
           !rendered.contains("message MetadataRequest") &&
@@ -299,7 +298,7 @@ object RenderSpec extends ZIOSpecDefault {
         val service2 = Service("Service2").rpc(rpc2)
 
         val dependency = Dependency.fromServices("shared.proto", service1, service2)
-        val rendered   = dependency.render(packageName, options)
+        val rendered   = dependency.render(options)
 
         assertTrue(
           rendered.contains("enum Priority") &&

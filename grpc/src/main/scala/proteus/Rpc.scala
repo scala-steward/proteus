@@ -30,7 +30,7 @@ sealed trait Rpc[Req, Resp](using requestCodec: ProtobufCodec[Req], responseCode
   val messagesToProtoIR: List[ProtoIR.TopLevelDef] =
     ProtobufCodec.toProtoIR(requestCodec) ++ ProtobufCodec.toProtoIR(responseCodec)
 
-  def toMethodDescriptor(serviceName: String, fileDescriptor: FileDescriptor): MethodDescriptor[Request, Response] = {
+  def toMethodDescriptor(serviceName: String, packageName: Option[String], fileDescriptor: FileDescriptor): MethodDescriptor[Request, Response] = {
     val serviceDescriptor = fileDescriptor.findServiceByName(serviceName)
     val methodDescriptor  = serviceDescriptor.findMethodByName(name)
 
@@ -42,7 +42,7 @@ sealed trait Rpc[Req, Resp](using requestCodec: ProtobufCodec[Req], responseCode
         case _: Rpc.ServerStreaming[?, ?] => MethodType.SERVER_STREAMING
         case _: Rpc.BidiStreaming[?, ?]   => MethodType.BIDI_STREAMING
       })
-      .setFullMethodName(MethodDescriptor.generateFullMethodName(serviceName, name))
+      .setFullMethodName(MethodDescriptor.generateFullMethodName(packageName.fold(serviceName)(s => s"$s.$serviceName"), name))
       .setSampledToLocalTracing(true)
       .setRequestMarshaller(ProtobufMarshaller[Request])
       .setResponseMarshaller(ProtobufMarshaller[Response])

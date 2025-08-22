@@ -47,6 +47,45 @@ object Fs2BackendSpec extends ZIOSpecDefault {
 
       assertTrue(result)
     },
+    test("should list services via gRPC reflection client") {
+      val result = Dispatcher
+        .parallel[IO]
+        .use { dispatcher =>
+          val backend       = Fs2ServerBackend[IO](dispatcher)
+          val serverService = ServerServiceBuilder(using backend)
+            .rpc(complexRpc, processComplexRequestFs2)
+            .build(testService)
+
+          val port              = 6020
+          val reflectionService = io.grpc.protobuf.services.ProtoReflectionServiceV1.newInstance
+          val server            = NettyServerBuilder.forPort(port).addService(serverService.definition).addService(reflectionService).build().start()
+          val channel           = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
+          val clientBackend     = new Fs2ClientBackend[IO](channel, dispatcher)
+
+          val program = for {
+            client        <- reflectionClient(clientBackend)
+            requestStream  = Stream.emit(ServerReflectionRequest("localhost", MessageRequest.ListServices("")))
+            responseStream = client(requestStream)
+            responses     <- responseStream.compile.toList
+          } yield responses.headOption
+            .flatMap {
+              case ServerReflectionResponse(_, _, MessageResponse.ListServicesResponse(services)) =>
+                Some(services.map(_.name))
+              case _                                                                              => None
+            }
+            .getOrElse(List.empty)
+
+          program.guarantee {
+            IO {
+              server.shutdown().awaitTermination(5, TimeUnit.SECONDS): Unit
+              channel.shutdown().awaitTermination(5, TimeUnit.SECONDS): Unit
+            }
+          }
+        }
+        .unsafeRunSync()
+
+      assertTrue(result.contains("test.package.TestService"))
+    },
     test("should handle complex gRPC request/response with fs2 backend") {
       val result = Dispatcher
         .parallel[IO]

@@ -32,7 +32,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
   opaque type UserId = String
   object UserId {
-    def apply(value: String): UserId = value
+    def apply(value: String): UserId             = value
     extension (userId: UserId) def value: String = userId
   }
 
@@ -446,8 +446,8 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         val codec = Schema[UserMessage].derive(deriver)
 
         val original = UserMessage(UserId("user-123"), "John Doe")
-        val encoded = codec.encode(original)
-        val decoded = codec.decode(encoded)
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
 
         assert(decoded)(equalTo(original))
       }
@@ -457,9 +457,9 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         @config("proteus.unwrap", "true")
         case class Wrapper(value: String) derives Schema
         case class MessageWithWrapper(id: Int, wrapped: Wrapper) derives Schema
-        
+
         case class MessageWithInlined(id: Int, wrapped: String) derives Schema
-        
+
         val wrapperCodec = Schema[MessageWithWrapper].derive(deriver)
         val inlinedCodec = Schema[MessageWithInlined].derive(deriver)
 
@@ -482,27 +482,27 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
           case Second
           case Third
         }
-        
+
         @config("proteus.oneof", "true")
         enum ForceOneOf derives Schema {
           case First
           case Second
           case Third
         }
-        
+
         case class MessageWithEnum(id: Int, choice: RegularEnum) derives Schema
         case class MessageWithOneOf(id: Int, choice: ForceOneOf) derives Schema
-        
-        val enumCodec = Schema[MessageWithEnum].derive(deriver)
+
+        val enumCodec  = Schema[MessageWithEnum].derive(deriver)
         val oneOfCodec = Schema[MessageWithOneOf].derive(deriver)
 
-        val enumMessage = MessageWithEnum(1, RegularEnum.First)
+        val enumMessage  = MessageWithEnum(1, RegularEnum.First)
         val oneOfMessage = MessageWithOneOf(1, ForceOneOf.First)
 
-        val enumEncoded = enumCodec.encode(enumMessage)
+        val enumEncoded  = enumCodec.encode(enumMessage)
         val oneOfEncoded = oneOfCodec.encode(oneOfMessage)
 
-        val enumDecoded = enumCodec.decode(enumEncoded)
+        val enumDecoded  = enumCodec.decode(enumEncoded)
         val oneOfDecoded = oneOfCodec.decode(oneOfEncoded)
 
         assert(enumDecoded)(equalTo(enumMessage)) &&
@@ -513,11 +513,11 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         @config("proteus.nested", "true")
         case class NestedData(value: String, count: Int) derives Schema
         case class MessageWithNested(id: Int, data: NestedData) derives Schema
-        
-        val codec = Schema[MessageWithNested].derive(deriver)
+
+        val codec    = Schema[MessageWithNested].derive(deriver)
         val original = MessageWithNested(1, NestedData("test", 42))
-        val encoded = codec.encode(original)
-        val decoded = codec.decode(encoded)
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
 
         assert(decoded)(equalTo(original))
       },
@@ -528,11 +528,11 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
           case Phone(number: String)
         }
         case class MessageWithInline(id: Int, contact: InlineContact) derives Schema
-        
-        val codec = Schema[MessageWithInline].derive(deriver)
+
+        val codec    = Schema[MessageWithInline].derive(deriver)
         val original = MessageWithInline(1, InlineContact.Email("test@example.com"))
-        val encoded = codec.encode(original)
-        val decoded = codec.decode(encoded)
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
 
         assert(decoded)(equalTo(original))
       }

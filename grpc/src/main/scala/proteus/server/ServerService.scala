@@ -13,13 +13,13 @@ case class ServerService[Unary[_], Streaming[_], Context](
   val fileDescriptor: FileDescriptor = service.fileDescriptor(dependencies)
 
   val methodDescriptors: List[MethodDescriptor[?, ?]] =
-    rpcs.sortBy(_.name).map(_.toMethodDescriptor(service.name, fileDescriptor))
+    rpcs.sortBy(_.name).map(_.toMethodDescriptor(service.name, service.packageName, fileDescriptor))
 
   val serviceDescriptor: ServiceDescriptor =
     methodDescriptors
       .foldLeft(
         ServiceDescriptor
-          .newBuilder(service.name)
+          .newBuilder(service.fullyQualifiedName)
           .setSchemaDescriptor(new ProtoFileDescriptorSupplier {
             def getFileDescriptor: FileDescriptor = fileDescriptor
           })

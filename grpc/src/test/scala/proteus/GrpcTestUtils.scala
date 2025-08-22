@@ -81,18 +81,18 @@ object GrpcTestUtils {
 
   // Unary RPC with complex messages
   val complexRpc  = Rpc.unary[ComplexRequest, ComplexResponse]("ProcessComplex")
-  val testService = Service("TestService").rpc(complexRpc)
+  val testService = Service("test.package", "TestService").rpc(complexRpc)
 
   // Unary RPC with metadata
   val metadataRpc     = Rpc.unary[MetadataRequest, MetadataResponse]("ProcessWithMetadata")
-  val metadataService = Service("MetadataService").rpc(metadataRpc)
+  val metadataService = Service("test.package", "MetadataService").rpc(metadataRpc)
 
   // Streaming RPCs
   val clientStreamingRpc = Rpc.clientStreaming[StreamRequest, StreamResponse]("ClientStreaming")
   val serverStreamingRpc = Rpc.serverStreaming[StreamRequest, StreamResponse]("ServerStreaming")
   val bidiStreamingRpc   = Rpc.bidiStreaming[StreamRequest, StreamResponse]("BidiStreaming")
 
-  val streamingService = Service("StreamingService")
+  val streamingService = Service("test.package", "StreamingService")
     .rpc(clientStreamingRpc)
     .rpc(serverStreamingRpc)
     .rpc(bidiStreamingRpc)
@@ -200,6 +200,6 @@ object GrpcTestUtils {
     server.shutdown().awaitTermination(5, TimeUnit.SECONDS)
     channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
 
-    serviceNames.contains("TestService")
+    serviceNames.contains("test.package.TestService")
   }
 }

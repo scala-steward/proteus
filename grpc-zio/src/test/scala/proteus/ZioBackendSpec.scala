@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import io.grpc.Metadata
 import io.grpc.StatusException
 import io.grpc.netty.{NettyChannelBuilder, NettyServerBuilder}
+import io.grpc.protobuf.services.ProtoReflectionServiceV1
 import scalapb.zio_grpc.{RequestContext, ZChannel}
 import zio.*
 import zio.stream.*
@@ -51,6 +52,34 @@ object ZioBackendSpec extends ZIOSpecDefault {
   def spec = suite("ZioBackendSpec")(
     test("should discover services via gRPC reflection") {
       assertTrue(testReflection(7010, serverService.definition))
+    },
+    test("should list services via gRPC reflection client") {
+      val port              = 7020
+      val reflectionService = ProtoReflectionServiceV1.newInstance
+      val server            = NettyServerBuilder.forPort(port).addService(serverService.definition).addService(reflectionService).build().start()
+      val channel           = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
+      val zChannel          = ZChannel(channel, Seq.empty)
+      val clientBackend     = new ZioClientBackend(zChannel)
+
+      val program = for {
+        client        <- reflectionClient(clientBackend)
+        requestStream  = ZStream.succeed(ServerReflectionRequest("localhost", MessageRequest.ListServices("")))
+        responseStream = client(requestStream)
+        responses     <- responseStream.runCollect
+      } yield responses.headOption
+        .flatMap {
+          case ServerReflectionResponse(_, _, MessageResponse.ListServicesResponse(services)) =>
+            Some(services.map(_.name))
+          case _                                                                              => None
+        }
+        .getOrElse(List.empty)
+
+      program
+        .ensuring(ZIO.attempt {
+          server.shutdown().awaitTermination(5, TimeUnit.SECONDS)
+          channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
+        }.ignore)
+        .flatMap(serviceNames => assertTrue(serviceNames.contains("test.package.TestService")))
     },
     test("should handle complex gRPC request/response with zio backend") {
       val port          = 7011

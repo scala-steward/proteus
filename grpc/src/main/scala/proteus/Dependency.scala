@@ -4,13 +4,13 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorProto
 import com.google.protobuf.Descriptors.FileDescriptor
 import zio.blocks.schema.Schema
 
-case class Dependency private (dependencyName: String, types: Set[ProtoIR.TopLevelDef], dependencies: List[Dependency]) {
+case class Dependency private (packageName: Option[String], dependencyName: String, types: Set[ProtoIR.TopLevelDef], dependencies: List[Dependency]) {
   val typeReferences       = types.flatMap(_.collectTypeReferences).toSet
   val filteredDependencies = dependencies.filter(_.hasAnyOf(typeReferences))
 
   val fileDescriptor: Option[FileDescriptor] =
     if (types.nonEmpty) {
-      val sharedFileBuilder = FileDescriptorProto.newBuilder().setName(s"$dependencyName").setPackage("")
+      val sharedFileBuilder = FileDescriptorProto.newBuilder().setName(s"$dependencyName").setPackage(packageName.getOrElse(""))
       types.foreach {
         case ProtoIR.TopLevelDef.MessageDef(msg)  => sharedFileBuilder.addMessageType(msg.toDescriptor)
         case ProtoIR.TopLevelDef.EnumDef(enumDef) => sharedFileBuilder.addEnumType(enumDef.toDescriptor)
@@ -34,7 +34,7 @@ case class Dependency private (dependencyName: String, types: Set[ProtoIR.TopLev
   def dependsOn(dependency: Dependency): Dependency =
     copy(types = types -- dependency.types, dependencies = dependencies :+ dependency)
 
-  def render(packageName: Option[String], options: List[ProtoIR.TopLevelOption]): String = {
+  def render(options: List[ProtoIR.TopLevelOption]): String = {
     val dependencyTypes = filteredDependencies.flatMap(_.types).map(_.name).toSet
     val filteredTypes   = types.filterNot(d => dependencyTypes.contains(d.name))
 
@@ -51,12 +51,15 @@ case class Dependency private (dependencyName: String, types: Set[ProtoIR.TopLev
 
 object Dependency {
   def apply(dependencyName: String): Dependency =
-    Dependency(dependencyName, Set.empty, Nil)
+    Dependency(None, dependencyName, Set.empty, Nil)
 
-  private def apply(dependencyName: String, types: Set[ProtoIR.TopLevelDef]): Dependency =
-    Dependency(dependencyName, types, Nil)
+  def apply(packageName: String, dependencyName: String): Dependency =
+    Dependency(Some(packageName), dependencyName, Set.empty, Nil)
 
-  def fromServices(dependencyName: String, services: Service[?]*): Dependency = {
+  def fromServices(dependencyName: String, services: Service[?]*): Dependency =
+    fromServices(None, dependencyName, services*)
+
+  def fromServices(packageName: Option[String], dependencyName: String, services: Service[?]*): Dependency = {
     val allTypes = services.flatMap(_.toProtoIR).toSet
 
     val requestResponseTypeNames =
@@ -68,6 +71,6 @@ object Dependency {
       case ProtoIR.TopLevelDef.ServiceDef(_)    => true
     }
 
-    Dependency(dependencyName, commonTypes)
+    Dependency(packageName, dependencyName, commonTypes, Nil)
   }
 }

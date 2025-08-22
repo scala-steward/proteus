@@ -3,10 +3,12 @@ package proteus
 import com.google.protobuf.DescriptorProtos.*
 import com.google.protobuf.Descriptors.FileDescriptor
 
-case class Service[Rpcs] private (name: String, rpcs: List[Rpc[?, ?]]) {
+case class Service[Rpcs] private (packageName: Option[String], name: String, rpcs: List[Rpc[?, ?]]) {
   val toProtoIR: List[ProtoIR.TopLevelDef] =
     (ProtoIR.TopLevelDef.ServiceDef(ProtoIR.Service(name, rpcs.map(_.toProtoIR))) ::
       rpcs.flatMap(_.messagesToProtoIR)).distinct
+
+  val fullyQualifiedName: String = packageName.fold(name)(s => s"$s.$name")
 
   private val typeReferences = toProtoIR.flatMap(_.collectTypeReferences).toSet
 
@@ -29,9 +31,9 @@ case class Service[Rpcs] private (name: String, rpcs: List[Rpc[?, ?]]) {
   }
 
   def rpc[Request, Response](rpc: Rpc[Request, Response]): Service[Rpcs & rpc.type] =
-    Service(name, rpcs :+ rpc)
+    Service(packageName, name, rpcs :+ rpc)
 
-  def render(packageName: Option[String], options: List[ProtoIR.TopLevelOption], dependencies: Dependency*): String = {
+  def render(options: List[ProtoIR.TopLevelOption], dependencies: Dependency*): String = {
     val filteredDependencies = dependencies.filter(_.hasAnyOf(typeReferences))
     val dependencyTypes      = filteredDependencies.flatMap(_.types).map(_.name).toSet
     val filteredDefinitions  = toProtoIR.filterNot(d => dependencyTypes.contains(d.name))
@@ -48,5 +50,8 @@ case class Service[Rpcs] private (name: String, rpcs: List[Rpc[?, ?]]) {
 
 object Service {
   def apply(name: String): Service[Any] =
-    Service(name, List.empty)
+    Service(None, name, List.empty)
+
+  def apply(packageName: String, name: String): Service[Any] =
+    Service(Some(packageName), name, List.empty)
 }
