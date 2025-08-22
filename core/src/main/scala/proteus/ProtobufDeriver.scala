@@ -29,7 +29,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
     doc: Doc,
     modifiers: Seq[Modifier.Record]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[A]] = {
-    val shouldUnwrap  = false // record.annotations.collectFirst { case unwrap() => true }.getOrElse(false) && record.fields.length == 1
+    val shouldUnwrap  = modifiers.collectFirst { case Modifier.config("proteus.unwrap", "true") => true }.getOrElse(false) && fields.length == 1
     val recordBinding = binding.asInstanceOf[Binding.Record[A]]
     val registers     = Reflect.Record.registers(fields.map(_.value).toArray)
     val offset        = Reflect.Record.usedRegisters(registers)
@@ -53,6 +53,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
         .collectAll(fields.map(field => D.instance(field.value.metadata).map(TermInstance(field, _))).toVector)
         .map { fieldsWithInstances =>
           val reservedIndexes = Set.empty[Int] // getReservedIndexes(record)
+          val nested          = modifiers.collectFirst { case Modifier.config("proteus.nested", "true") => true }.getOrElse(false)
           val builder         = List.newBuilder[ProtobufCodec.MessageField[?]]
           var id              = 0
 
@@ -123,7 +124,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
             offset,
             reservedIndexes,
             inline = false,
-            nested = false // TODO
+            nested = nested
           )
         }
     }
@@ -139,7 +140,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
     if (typeName.name == unitOption.name && typeName.namespace == unitOption.namespace)
       D.instance(cases.find(c => c.name == unitSome.name).get.value.asRecord.get.fields.head.value.metadata)
         .map(ProtobufCodec.Optional(_).asInstanceOf[ProtobufCodec[A]])
-    else if (isEnum(cases)) {
+    else if (isEnum(cases, modifiers)) {
       val reservedIndexes = List.empty // TODO
       val builder         = List.newBuilder[ProtobufCodec.EnumValue[A]]
       var index           = 0
@@ -151,7 +152,8 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
       }
       Lazy(ProtobufCodec.Enum(typeName.name, builder.result(), reservedIndexes))
     } else {
-      val inline        = false // TODO
+      val inline        = modifiers.collectFirst { case Modifier.config("proteus.inline", "true") => true }.getOrElse(false)
+      val nested        = modifiers.collectFirst { case Modifier.config("proteus.nested", "true") => true }.getOrElse(false)
       val discriminator = binding.asInstanceOf[Binding.Variant[A]].discriminator
       Lazy.collectAll(cases.map(c => D.instance(c.value.metadata).map(TermInstance(c, _))).toVector).map { casesWithInstances =>
         val reservedIndexes = Set.empty[Int] // TODO
@@ -185,7 +187,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
           register.usedRegisters,
           reservedIndexes,
           inline = inline,
-          nested = false // TODO
+          nested = nested
         )
       }
     }
@@ -292,17 +294,17 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
             true
           case _                                                                                                                          => false
         }
-      case e: Reflect.Variant[?, ?]   => isEnum(e.cases)
+      case e: Reflect.Variant[?, ?]   => isEnum(e.cases, e.modifiers)
       case _                          => false
     }
 
-  private def isEnum(cases: IndexedSeq[Term[?, ?, ?]]): Boolean =
+  private def isEnum(cases: IndexedSeq[Term[?, ?, ?]], modifiers: Seq[Modifier]): Boolean =
     cases.forall(c =>
       innerSchema(c.value) match {
         case record: Reflect.Record[?, ?] => record.fields.length == 0
         case _                            => false
       }
-    ) // && !e.annotations.exists { case oneof() => true; case _ => false }
+    ) && !modifiers.exists { case Modifier.config("proteus.oneof", "true") => true; case _ => false }
 
   private def innerSchema[F[_, _], A](schema: Reflect[F, A]): Reflect[F, A] =
     schema match {

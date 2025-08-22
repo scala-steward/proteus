@@ -5,6 +5,7 @@ import java.time.*
 import scala.util.Try
 
 import zio.blocks.schema.{Schema, TypeName}
+import zio.blocks.schema.Modifier.config
 import zio.test.*
 import zio.test.Assertion.*
 
@@ -445,6 +446,91 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         val codec = Schema[UserMessage].derive(deriver)
 
         val original = UserMessage(UserId("user-123"), "John Doe")
+        val encoded = codec.encode(original)
+        val decoded = codec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
+      }
+    ),
+    suite("Proteus Modifiers")(
+      test("proteus.unwrap modifier produces same encoding as inlined field") {
+        @config("proteus.unwrap", "true")
+        case class Wrapper(value: String) derives Schema
+        case class MessageWithWrapper(id: Int, wrapped: Wrapper) derives Schema
+        
+        case class MessageWithInlined(id: Int, wrapped: String) derives Schema
+        
+        val wrapperCodec = Schema[MessageWithWrapper].derive(deriver)
+        val inlinedCodec = Schema[MessageWithInlined].derive(deriver)
+
+        val wrapperMessage = MessageWithWrapper(1, Wrapper("test"))
+        val inlinedMessage = MessageWithInlined(1, "test")
+
+        val wrapperEncoded = wrapperCodec.encode(wrapperMessage)
+        val inlinedEncoded = inlinedCodec.encode(inlinedMessage)
+
+        val wrapperDecoded = wrapperCodec.decode(wrapperEncoded)
+        val inlinedDecoded = inlinedCodec.decode(inlinedEncoded)
+
+        assert(wrapperDecoded)(equalTo(wrapperMessage)) &&
+          assert(inlinedDecoded)(equalTo(inlinedMessage)) &&
+          assert(wrapperEncoded)(equalTo(inlinedEncoded))
+      },
+      test("proteus.oneof modifier forces enum to oneOf encoding") {
+        enum RegularEnum derives Schema {
+          case First
+          case Second
+          case Third
+        }
+        
+        @config("proteus.oneof", "true")
+        enum ForceOneOf derives Schema {
+          case First
+          case Second
+          case Third
+        }
+        
+        case class MessageWithEnum(id: Int, choice: RegularEnum) derives Schema
+        case class MessageWithOneOf(id: Int, choice: ForceOneOf) derives Schema
+        
+        val enumCodec = Schema[MessageWithEnum].derive(deriver)
+        val oneOfCodec = Schema[MessageWithOneOf].derive(deriver)
+
+        val enumMessage = MessageWithEnum(1, RegularEnum.First)
+        val oneOfMessage = MessageWithOneOf(1, ForceOneOf.First)
+
+        val enumEncoded = enumCodec.encode(enumMessage)
+        val oneOfEncoded = oneOfCodec.encode(oneOfMessage)
+
+        val enumDecoded = enumCodec.decode(enumEncoded)
+        val oneOfDecoded = oneOfCodec.decode(oneOfEncoded)
+
+        assert(enumDecoded)(equalTo(enumMessage)) &&
+          assert(oneOfDecoded)(equalTo(oneOfMessage)) &&
+          assert(enumEncoded)(not(equalTo(oneOfEncoded)))
+      },
+      test("proteus.nested modifier") {
+        @config("proteus.nested", "true")
+        case class NestedData(value: String, count: Int) derives Schema
+        case class MessageWithNested(id: Int, data: NestedData) derives Schema
+        
+        val codec = Schema[MessageWithNested].derive(deriver)
+        val original = MessageWithNested(1, NestedData("test", 42))
+        val encoded = codec.encode(original)
+        val decoded = codec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
+      },
+      test("proteus.inline modifier") {
+        @config("proteus.inline", "true")
+        enum InlineContact derives Schema {
+          case Email(address: String)
+          case Phone(number: String)
+        }
+        case class MessageWithInline(id: Int, contact: InlineContact) derives Schema
+        
+        val codec = Schema[MessageWithInline].derive(deriver)
+        val original = MessageWithInline(1, InlineContact.Email("test@example.com"))
         val encoded = codec.encode(original)
         val decoded = codec.decode(encoded)
 
