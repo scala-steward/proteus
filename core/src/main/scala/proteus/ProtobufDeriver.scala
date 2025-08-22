@@ -122,7 +122,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
             idx += 1
           }
           ProtobufCodec.Message(
-            typeName.name,
+            getTypeName(typeName.name, modifiers),
             builder.result(),
             recordBinding.constructor,
             recordBinding.deconstructor,
@@ -155,7 +155,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
         builder += ProtobufCodec.EnumValue(toUpperSnakeCase(c.name), index, a) // TODO: rename, prefix, etc.
         index += 1
       }
-      Lazy(ProtobufCodec.Enum(typeName.name, builder.result(), reservedIndexes))
+      Lazy(ProtobufCodec.Enum(getTypeName(typeName.name, modifiers), builder.result(), reservedIndexes))
     } else {
       val inline        = modifiers.collectFirst { case `inlineModifier` => true }.getOrElse(false)
       val nested        = modifiers.collectFirst { case `nestedModifier` => true }.getOrElse(false)
@@ -179,7 +179,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
           id += 1
         }
         ProtobufCodec.Message(
-          typeName.name,
+          getTypeName(typeName.name, modifiers),
           builder.result(),
           new Constructor[A]   {
             def usedRegisters: RegisterOffset                           = register.usedRegisters
@@ -302,6 +302,11 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
       case e: Reflect.Variant[?, ?]   => isEnum(e.cases, e.modifiers)
       case _                          => false
     }
+
+  private def getTypeName(originalName: String, modifiers: Seq[Modifier]): String =
+    modifiers
+      .collectFirst { case Modifier.config("proteus.rename", newName) => newName }
+      .getOrElse(originalName)
 
   private def getReservedIndexes(modifiers: Seq[Modifier]): Set[Int] =
     modifiers

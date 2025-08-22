@@ -298,6 +298,29 @@ message Phone {
 """
 
         assertTrue(rendered == expected)
+      },
+      test("proteus.rename modifier renames type") {
+        @config("proteus.rename", "RenamedUser")
+        case class User(id: Int, name: String) derives Schema
+        case class UserMessage(user: User) derives Schema
+
+        val codec    = Schema[UserMessage].derive(deriver)
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message UserMessage {
+    RenamedUser user = 1;
+}
+
+message RenamedUser {
+    int32 id = 1;
+    string name = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
       }
     ),
     suite("Derivation Flags")(
