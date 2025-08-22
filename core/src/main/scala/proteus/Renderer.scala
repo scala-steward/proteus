@@ -104,10 +104,13 @@ object Renderer {
         line("}")
       )
 
-    def renderRpc(rpc: Rpc): Text =
+    def renderRpc(rpc: Rpc): Text = {
+      val requestType = if (rpc.streamingRequest) s"stream ${rpc.request.fqn.render}" else rpc.request.fqn.render
+      val responseType = if (rpc.streamingResponse) s"stream ${rpc.response.fqn.render}" else rpc.response.fqn.render
       statement(
-        s"rpc ${rpc.name}(${rpc.request.fqn.render}) returns (${rpc.response.fqn.render})"
+        s"rpc ${rpc.name}($requestType) returns ($responseType)"
       )
+    }
 
     def renderType(ty: Type): String = {
       import Type._

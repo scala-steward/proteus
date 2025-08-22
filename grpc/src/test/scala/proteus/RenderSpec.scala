@@ -29,13 +29,31 @@ object RenderSpec extends ZIOSpecDefault {
     suite("Service Rendering")(
       test("should only include used dependencies in rendered proto") {
         val renderedProto = serviceWithShared.render(options, sharedDep, unusedDep)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          renderedProto.contains("import \"shared.proto\";") &&
-            !renderedProto.contains("import \"unused.proto\";") &&
-            renderedProto.contains("service ServiceWithShared") &&
-            renderedProto.contains("rpc ProcessShared")
-        )
+package test.package;
+
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+import "shared.proto";
+
+service ServiceWithShared {
+    rpc ProcessShared(RequestWithShared) returns (ResponseWithShared);
+}
+
+message RequestWithShared {
+    int32 id = 1;
+    SharedMessage shared = 2;
+}
+
+message ResponseWithShared {
+    string result = 1;
+    SharedMessage shared = 2;
+}
+"""
+
+        assertTrue(renderedProto == expected)
       },
       test("should include all dependencies when all are used") {
         val priorityDep = Dependency("priority.proto").add[Priority]
@@ -43,36 +61,164 @@ object RenderSpec extends ZIOSpecDefault {
         val addressDep  = Dependency("address.proto").add[Address]
 
         val renderedProto = testService.render(options, priorityDep, contactDep, addressDep)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          renderedProto.contains("import \"priority.proto\";") &&
-            renderedProto.contains("import \"contact.proto\";") &&
-            renderedProto.contains("import \"address.proto\";") &&
-            renderedProto.contains("service TestService") &&
-            renderedProto.contains("rpc ProcessComplex")
-        )
+package test.package;
+
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+import "priority.proto";
+
+import "contact.proto";
+
+import "address.proto";
+
+service TestService {
+    rpc ProcessComplex(ComplexRequest) returns (ComplexResponse);
+}
+
+message ComplexRequest {
+    int64 id = 1;
+    string name = 2;
+    bool is_active = 3;
+    double score = 4;
+    repeated int32 numbers = 5;
+    repeated string tags = 6;
+    map<string, int32> metadata = 7;
+    Priority priority = 8;
+    ContactMethod contact = 9;
+    Address address = 10;
+    optional int32 count = 11;
+}
+
+message ComplexResponse {
+    int64 processed_id = 1;
+    string processed_name = 2;
+    bool was_active = 3;
+    double adjusted_score = 4;
+    repeated int32 processed_numbers = 5;
+    repeated string processed_tags = 6;
+    map<string, int32> response_metadata = 7;
+    Priority result_priority = 8;
+    ContactMethod preferred_contact = 9;
+    Address confirmed_address = 10;
+    string processing_note = 11;
+    int64 timestamp = 12;
+}
+"""
+
+        assertTrue(renderedProto == expected)
       },
       test("should not include any imports when no dependencies are used") {
         val unusedDep1 = Dependency("unused1.proto").add[UnusedMessage]
         val unusedDep2 = Dependency("unused2.proto").add[SharedMessage]
 
         val renderedProto = metadataService.render(options, unusedDep1, unusedDep2)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          !renderedProto.contains("import \"unused1.proto\";") &&
-            !renderedProto.contains("import \"unused2.proto\";") &&
-            renderedProto.contains("service MetadataService") &&
-            renderedProto.contains("rpc ProcessWithMetadata")
-        )
+package test.package;
+
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+service MetadataService {
+    rpc ProcessWithMetadata(MetadataRequest) returns (MetadataResponse);
+}
+
+message MetadataRequest {
+    string message = 1;
+}
+
+message MetadataResponse {
+    string echo = 1;
+    string client_id = 2;
+    string server_note = 3;
+}
+"""
+
+        assertTrue(renderedProto == expected)
       },
       test("should include package name and options in rendered proto") {
         val renderedProto = testService.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          renderedProto.contains("package test.package;") &&
-            renderedProto.contains("option java_package = com.test.proto;") &&
-            renderedProto.contains("option csharp_namespace = Test.Proto;")
-        )
+package test.package;
+
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+service TestService {
+    rpc ProcessComplex(ComplexRequest) returns (ComplexResponse);
+}
+
+message ComplexRequest {
+    int64 id = 1;
+    string name = 2;
+    bool is_active = 3;
+    double score = 4;
+    repeated int32 numbers = 5;
+    repeated string tags = 6;
+    map<string, int32> metadata = 7;
+    Priority priority = 8;
+    ContactMethod contact = 9;
+    Address address = 10;
+    optional int32 count = 11;
+}
+
+enum Priority {
+    LOW = 0;
+    MEDIUM = 1;
+    HIGH = 2;
+    CRITICAL = 3;
+}
+
+message ContactMethod {
+    oneof value {
+        Email email = 1;
+        Phone phone = 2;
+        Slack slack = 3;
+    }
+}
+
+message Email {
+    string address = 1;
+}
+
+message Phone {
+    string number = 1;
+    string country = 2;
+}
+
+message Slack {
+    string workspace = 1;
+    string channel = 2;
+}
+
+message Address {
+    string street = 1;
+    string city = 2;
+    string country = 3;
+    int32 zip_code = 4;
+}
+
+message ComplexResponse {
+    int64 processed_id = 1;
+    string processed_name = 2;
+    bool was_active = 3;
+    double adjusted_score = 4;
+    repeated int32 processed_numbers = 5;
+    repeated string processed_tags = 6;
+    map<string, int32> response_metadata = 7;
+    Priority result_priority = 8;
+    ContactMethod preferred_contact = 9;
+    Address confirmed_address = 10;
+    string processing_note = 11;
+    int64 timestamp = 12;
+}
+"""
+        
+        assertTrue(renderedProto == expected)
       },
       test("should handle complex nested type references") {
         val complexDep = Dependency("complex_types.proto")
@@ -81,26 +227,72 @@ object RenderSpec extends ZIOSpecDefault {
           .add[Address]
 
         val renderedProto = testService.render(options, complexDep)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          renderedProto.contains("import \"complex_types.proto\";") &&
-            renderedProto.contains("service TestService") &&
-            !renderedProto.contains("enum Priority") && // Should be imported, not defined
-            !renderedProto.contains("message Address")  // Should be imported, not defined
-        )
+package test.package;
+
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+import "complex_types.proto";
+
+service TestService {
+    rpc ProcessComplex(ComplexRequest) returns (ComplexResponse);
+}
+
+message ComplexRequest {
+    int64 id = 1;
+    string name = 2;
+    bool is_active = 3;
+    double score = 4;
+    repeated int32 numbers = 5;
+    repeated string tags = 6;
+    map<string, int32> metadata = 7;
+    Priority priority = 8;
+    ContactMethod contact = 9;
+    Address address = 10;
+    optional int32 count = 11;
+}
+
+message ComplexResponse {
+    int64 processed_id = 1;
+    string processed_name = 2;
+    bool was_active = 3;
+    double adjusted_score = 4;
+    repeated int32 processed_numbers = 5;
+    repeated string processed_tags = 6;
+    map<string, int32> response_metadata = 7;
+    Priority result_priority = 8;
+    ContactMethod preferred_contact = 9;
+    Address confirmed_address = 10;
+    string processing_note = 11;
+    int64 timestamp = 12;
+}
+"""
+
+        assertTrue(renderedProto == expected)
       },
       test("should handle streaming services with type dependencies") {
         val streamDep = Dependency("stream_types.proto").add[StreamRequest].add[StreamResponse]
 
         val renderedProto = streamingService.render(options, streamDep)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          renderedProto.contains("import \"stream_types.proto\";") &&
-            renderedProto.contains("service StreamingService") &&
-            renderedProto.contains("rpc ClientStreaming") &&
-            renderedProto.contains("rpc ServerStreaming") &&
-            renderedProto.contains("rpc BidiStreaming")
-        )
+package test.package;
+
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+import "stream_types.proto";
+
+service StreamingService {
+    rpc ClientStreaming(stream StreamRequest) returns (StreamResponse);
+    rpc ServerStreaming(StreamRequest) returns (stream StreamResponse);
+    rpc BidiStreaming(stream StreamRequest) returns (stream StreamResponse);
+}
+"""
+
+        assertTrue(renderedProto == expected)
       },
       test("should work with service dependency filtering") {
         val priorityDep = Dependency("priority.proto").add[Priority]
@@ -109,16 +301,72 @@ object RenderSpec extends ZIOSpecDefault {
 
         val service         = Service("TestService").rpc(Rpc.unary[ComplexRequest, ComplexResponse]("Test"))
         val serviceRendered = service.render(options, priorityDep, addressDep, unusedDep)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          serviceRendered.contains("import \"priority.proto\";") &&
-            serviceRendered.contains("import \"address.proto\";") &&
-            !serviceRendered.contains("import \"unused.proto\";") && // Should be filtered out
-            serviceRendered.contains("service TestService") &&
-            serviceRendered.contains("rpc Test") &&
-            serviceRendered.contains("message ComplexRequest") &&    // Should be defined in service
-            serviceRendered.contains("message ComplexResponse")      // Should be defined in service
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+import "priority.proto";
+
+import "address.proto";
+
+service TestService {
+    rpc Test(ComplexRequest) returns (ComplexResponse);
+}
+
+message ComplexRequest {
+    int64 id = 1;
+    string name = 2;
+    bool is_active = 3;
+    double score = 4;
+    repeated int32 numbers = 5;
+    repeated string tags = 6;
+    map<string, int32> metadata = 7;
+    Priority priority = 8;
+    ContactMethod contact = 9;
+    Address address = 10;
+    optional int32 count = 11;
+}
+
+message ContactMethod {
+    oneof value {
+        Email email = 1;
+        Phone phone = 2;
+        Slack slack = 3;
+    }
+}
+
+message Email {
+    string address = 1;
+}
+
+message Phone {
+    string number = 1;
+    string country = 2;
+}
+
+message Slack {
+    string workspace = 1;
+    string channel = 2;
+}
+
+message ComplexResponse {
+    int64 processed_id = 1;
+    string processed_name = 2;
+    bool was_active = 3;
+    double adjusted_score = 4;
+    repeated int32 processed_numbers = 5;
+    repeated string processed_tags = 6;
+    map<string, int32> response_metadata = 7;
+    Priority result_priority = 8;
+    ContactMethod preferred_contact = 9;
+    Address confirmed_address = 10;
+    string processing_note = 11;
+    int64 timestamp = 12;
+}
+"""
+
+        assertTrue(serviceRendered == expected)
       },
       test("should handle simple service with minimal dependencies") {
         val sharedDep = Dependency("shared.proto").add[SharedMessage]
@@ -126,57 +374,108 @@ object RenderSpec extends ZIOSpecDefault {
 
         val service         = Service("SimpleService").rpc(Rpc.unary[RequestWithShared, ResponseWithShared]("Process"))
         val serviceRendered = service.render(options, sharedDep, unusedDep)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          serviceRendered.contains("import \"shared.proto\";") &&
-            !serviceRendered.contains("import \"unused.proto\";") &&
-            serviceRendered.contains("service SimpleService") &&
-            serviceRendered.contains("rpc Process") &&
-            serviceRendered.contains("message RequestWithShared") &&
-            serviceRendered.contains("message ResponseWithShared")
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+import "shared.proto";
+
+service SimpleService {
+    rpc Process(RequestWithShared) returns (ResponseWithShared);
+}
+
+message RequestWithShared {
+    int32 id = 1;
+    SharedMessage shared = 2;
+}
+
+message ResponseWithShared {
+    string result = 1;
+    SharedMessage shared = 2;
+}
+"""
+
+        assertTrue(serviceRendered == expected)
       }
     ),
     suite("Dependency Rendering")(
       test("should render dependency with simple types") {
         val simpleDep = Dependency("test.package", "simple.proto").add[SharedMessage]
         val rendered  = simpleDep.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          rendered.contains("package test.package;") &&
-            rendered.contains("option java_package = com.test.proto;") &&
-            rendered.contains("option csharp_namespace = Test.Proto;") &&
-            rendered.contains("message SharedMessage") &&
-            rendered.contains("string value = 1;") &&
-            !rendered.contains("import")
-        )
+package test.package;
+
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+message SharedMessage {
+    string value = 1;
+}
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should render dependency with enum types") {
         val enumDep  = Dependency("enums.proto").add[Priority]
         val rendered = enumDep.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          rendered.contains("enum Priority") &&
-            rendered.contains("LOW = 0;") &&
-            rendered.contains("MEDIUM = 1;") &&
-            rendered.contains("HIGH = 2;") &&
-            rendered.contains("CRITICAL = 3;")
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+enum Priority {
+    LOW = 0;
+    MEDIUM = 1;
+    HIGH = 2;
+    CRITICAL = 3;
+}
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should render dependency with complex nested types") {
         val complexDep = Dependency("complex.proto")
           .add[Address]
           .add[ContactMethod]
         val rendered   = complexDep.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          rendered.contains("message Address") &&
-            rendered.contains("message ContactMethod") &&
-            rendered.contains("oneof value") &&
-            rendered.contains("Email email = 1;") &&
-            rendered.contains("Phone phone = 2;") &&
-            rendered.contains("Slack slack = 3;")
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+message Address {
+    string street = 1;
+    string city = 2;
+    string country = 3;
+    int32 zip_code = 4;
+}
+
+message ContactMethod {
+    oneof value {
+        Email email = 1;
+        Phone phone = 2;
+        Slack slack = 3;
+    }
+}
+
+message Email {
+    string address = 1;
+}
+
+message Phone {
+    string number = 1;
+    string country = 2;
+}
+
+message Slack {
+    string workspace = 1;
+    string channel = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should filter out unused sub-dependencies when rendering") {
         val baseDep   = Dependency("base.proto").add[SharedMessage]
@@ -188,13 +487,20 @@ object RenderSpec extends ZIOSpecDefault {
           .dependsOn(unusedDep)
 
         val rendered = mainDep.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          rendered.contains("import \"base.proto\";") &&
-            !rendered.contains("import \"unused.proto\";") &&
-            rendered.contains("message RequestWithShared") &&
-            rendered.contains("SharedMessage shared = 2")
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+import "base.proto";
+
+message RequestWithShared {
+    int32 id = 1;
+    SharedMessage shared = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should include all used sub-dependencies when rendering") {
         val priorityDep = Dependency("priority.proto").add[Priority]
@@ -208,28 +514,47 @@ object RenderSpec extends ZIOSpecDefault {
           .dependsOn(contactDep)
 
         val rendered = mainDep.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          rendered.contains("import \"priority.proto\";") &&
-            rendered.contains("import \"address.proto\";") &&
-            rendered.contains("import \"contact.proto\";") &&
-            rendered.contains("message ComplexRequest") &&
-            rendered.contains("Priority priority = 8;") &&
-            rendered.contains("Address address = 10")
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+import "priority.proto";
+
+import "address.proto";
+
+import "contact.proto";
+
+message ComplexRequest {
+    int64 id = 1;
+    string name = 2;
+    bool is_active = 3;
+    double score = 4;
+    repeated int32 numbers = 5;
+    repeated string tags = 6;
+    map<string, int32> metadata = 7;
+    Priority priority = 8;
+    ContactMethod contact = 9;
+    Address address = 10;
+    optional int32 count = 11;
+}
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should render empty dependency without types") {
         val emptyDep = Dependency("test.package", "empty.proto")
         val rendered = emptyDep.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          rendered.contains("package test.package;") &&
-            rendered.contains("option java_package = com.test.proto;") &&
-            rendered.contains("option csharp_namespace = Test.Proto;") &&
-            !rendered.contains("message") &&
-            !rendered.contains("enum") &&
-            !rendered.contains("import")
-        )
+package test.package;
+
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should handle dependency chains correctly") {
         val level1 = Dependency("level1.proto").add[SharedMessage]
@@ -237,11 +562,20 @@ object RenderSpec extends ZIOSpecDefault {
         val level3 = Dependency("level3.proto").add[ResponseWithShared].dependsOn(level1)
 
         val rendered = level3.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          rendered.contains("import \"level1.proto\";") &&
-            rendered.contains("message ResponseWithShared")
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+import "level1.proto";
+
+message ResponseWithShared {
+    string result = 1;
+    SharedMessage shared = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should sort types alphabetically in rendered output") {
         val multiTypeDep = Dependency("multi.proto")
@@ -249,16 +583,50 @@ object RenderSpec extends ZIOSpecDefault {
           .add[Address] // Message starting with A
           .add[ContactMethod] // Message starting with C
 
-        val rendered      = multiTypeDep.render(options)
-        val addressIndex  = rendered.indexOf("message Address")
-        val contactIndex  = rendered.indexOf("message ContactMethod")
-        val priorityIndex = rendered.indexOf("enum Priority")
+        val rendered = multiTypeDep.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          addressIndex < contactIndex &&    // Address comes before ContactMethod
-            addressIndex < priorityIndex && // Address comes before Priority
-            contactIndex < priorityIndex    // ContactMethod comes before Priority
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+message Address {
+    string street = 1;
+    string city = 2;
+    string country = 3;
+    int32 zip_code = 4;
+}
+
+message ContactMethod {
+    oneof value {
+        Email email = 1;
+        Phone phone = 2;
+        Slack slack = 3;
+    }
+}
+
+message Email {
+    string address = 1;
+}
+
+message Phone {
+    string number = 1;
+    string country = 2;
+}
+
+enum Priority {
+    LOW = 0;
+    MEDIUM = 1;
+    HIGH = 2;
+    CRITICAL = 3;
+}
+
+message Slack {
+    string workspace = 1;
+    string channel = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should extract common types from services using fromServices") {
         val service1 = Service("Service1").rpc(Rpc.unary[ComplexRequest, ComplexResponse]("Method1"))
@@ -266,14 +634,49 @@ object RenderSpec extends ZIOSpecDefault {
 
         val dependency = Dependency.fromServices("common.proto", service1, service2)
         val rendered   = dependency.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          rendered.contains("enum Priority") &&
-            rendered.contains("message Address") &&
-            rendered.contains("message ContactMethod") &&
-            !rendered.contains("message ComplexRequest") && // Should be excluded as request/response type
-            !rendered.contains("message ComplexResponse")   // Should be excluded as request/response type
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+message Address {
+    string street = 1;
+    string city = 2;
+    string country = 3;
+    int32 zip_code = 4;
+}
+
+message ContactMethod {
+    oneof value {
+        Email email = 1;
+        Phone phone = 2;
+        Slack slack = 3;
+    }
+}
+
+message Email {
+    string address = 1;
+}
+
+message Phone {
+    string number = 1;
+    string country = 2;
+}
+
+enum Priority {
+    LOW = 0;
+    MEDIUM = 1;
+    HIGH = 2;
+    CRITICAL = 3;
+}
+
+message Slack {
+    string workspace = 1;
+    string channel = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should exclude request/response types from fromServices") {
         val testRpc     = Rpc.unary[MetadataRequest, MetadataResponse]("TestMethod")
@@ -281,12 +684,14 @@ object RenderSpec extends ZIOSpecDefault {
 
         val dependency = Dependency.fromServices("shared.proto", testService)
         val rendered   = dependency.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          !rendered.contains("message MetadataRequest") &&
-            !rendered.contains("message MetadataResponse") &&
-            !rendered.contains("message")
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+"""
+
+        assertTrue(rendered == expected)
       },
       test("should handle multiple services with shared enums using fromServices") {
         case class RequestWithPriority(priority: Priority, data: String) derives Schema
@@ -299,16 +704,49 @@ object RenderSpec extends ZIOSpecDefault {
 
         val dependency = Dependency.fromServices("shared.proto", service1, service2)
         val rendered   = dependency.render(options)
+        val expected = """syntax = "proto3";
 
-        assertTrue(
-          rendered.contains("enum Priority") &&
-            rendered.contains("message Address") &&
-            rendered.contains("message ContactMethod") &&
-            !rendered.contains("message RequestWithPriority") &&
-            !rendered.contains("message ResponseWithPriority") &&
-            !rendered.contains("message ComplexRequest") &&
-            !rendered.contains("message ComplexResponse")
-        )
+option java_package = com.test.proto;
+option csharp_namespace = Test.Proto;
+
+message Address {
+    string street = 1;
+    string city = 2;
+    string country = 3;
+    int32 zip_code = 4;
+}
+
+message ContactMethod {
+    oneof value {
+        Email email = 1;
+        Phone phone = 2;
+        Slack slack = 3;
+    }
+}
+
+message Email {
+    string address = 1;
+}
+
+message Phone {
+    string number = 1;
+    string country = 2;
+}
+
+enum Priority {
+    LOW = 0;
+    MEDIUM = 1;
+    HIGH = 2;
+    CRITICAL = 3;
+}
+
+message Slack {
+    string workspace = 1;
+    string channel = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
       }
     )
   )
