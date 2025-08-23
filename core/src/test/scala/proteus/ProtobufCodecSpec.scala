@@ -52,7 +52,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
   def spec = suite("ProtobufCodecSpec")(
     suite("Simple Types")(
-      test("basic message with primitives") {
+      test("message with basic primitives") {
         case class SimpleMessage(id: Int, name: String, active: Boolean) derives Schema
         val codec = Schema[SimpleMessage].derive(deriver)
 
@@ -538,7 +538,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("Bytes Primitive")( 
-      test("basic bytes array encoding/decoding") {
+      test("message with bytes array encoding/decoding") {
         case class BytesMessage(id: Int, data: Array[Byte]) derives Schema
         val codec = Schema[BytesMessage].derive(deriver)
 
@@ -550,7 +550,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         assert(decoded.id)(equalTo(original.id)) &&
           assert(decoded.data)(equalTo(original.data))
       },
-      test("empty byte array encoding/decoding") {
+      test("message with empty byte array") {
         case class EmptyBytesMessage(id: Int, data: Array[Byte]) derives Schema
         val codec = Schema[EmptyBytesMessage].derive(deriver)
 
@@ -586,7 +586,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
           assert(encodedNone.length)(isLessThan(encodedEmpty.length)) &&
           assert(encodedEmpty.length)(isLessThan(encodedData.length))
       },
-      test("bytes field in nested messages") {
+      test("message with bytes field in nested messages") {
         case class InnerMessage(data: Array[Byte], label: String) derives Schema
         case class OuterMessage(id: Int, inner: InnerMessage) derives Schema
         val codec = Schema[OuterMessage].derive(deriver)
@@ -600,7 +600,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
           assert(decoded.inner.data)(equalTo(original.inner.data)) &&
           assert(decoded.inner.label)(equalTo(original.inner.label))
       },
-      test("multiple bytes fields in same message") {
+      test("message with multiple bytes fields") {
         case class MultipleBytesMessage(id: Int, data1: Array[Byte], data2: Array[Byte]) derives Schema
         val codec = Schema[MultipleBytesMessage].derive(deriver)
 
