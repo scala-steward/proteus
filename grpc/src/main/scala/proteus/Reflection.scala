@@ -19,7 +19,7 @@ enum MessageRequest derives Schema {
 
 @config("proteus.inline", "true")
 enum MessageResponse derives Schema {
-  case FileDescriptorResponse(fileDescriptorProto: String) // TODO: support Array[Byte]
+  case FileDescriptorResponse(fileDescriptorProto: Array[Byte])
   @config("proteus.rename", "ExtensionNumberResponse") case AllExtensionNumbersResponse(baseTypeName: String, extensionNumber: List[Int])
   @config("proteus.rename", "ListServiceResponse") case ListServicesResponse(service: List[ServiceResponse])
   case ErrorResponse(errorCode: Int, errorMessage: String)

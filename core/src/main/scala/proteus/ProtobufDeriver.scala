@@ -6,6 +6,7 @@ import scala.util.boundary.break
 import zio.blocks.schema.*
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.*
+import zio.blocks.schema.binding.SeqConstructor.*
 import zio.blocks.schema.derive.*
 
 import proteus.ProtobufDeriver.*
@@ -208,12 +209,16 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[C[A]]] = {
     val seqBinding = binding.asInstanceOf[Binding.Seq[C, A]]
     D.instance(element.metadata).map { instance =>
-      ProtobufCodec.Repeated[C, A](
-        instance,
-        seqBinding.constructor,
-        seqBinding.deconstructor,
-        isPacked(element)
-      )
+      val isByteArray = seqBinding.constructor match {
+        case _: ArrayConstructor =>
+          instance match {
+            case ProtobufCodec.Primitive(_: PrimitiveType.Byte) => true
+            case _                                              => false
+          }
+        case _                   => false
+      }
+      if (isByteArray) ProtobufCodec.Bytes.asInstanceOf[ProtobufCodec[C[A]]]
+      else ProtobufCodec.Repeated[C, A](instance, seqBinding.constructor, seqBinding.deconstructor, isPacked(element))
     }
   }
 
@@ -368,6 +373,8 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
         val offset    = RegisterOffset.Zero
         val registers = Registers(offset)
         from(registers, offset, getDefaultValue(using codec))
+      case ProtobufCodec.Bytes                                          =>
+        Array.empty[Byte]
     }
 
   private def constructEnumCase[F[_, _], A](c: Term[F, ?, A])(using hasBinding: HasBinding[F]): A =

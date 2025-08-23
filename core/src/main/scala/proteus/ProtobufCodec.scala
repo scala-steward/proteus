@@ -243,6 +243,11 @@ object ProtobufCodec {
     }
   }
 
+  case object Bytes extends ProtobufCodec[Array[Byte]] {
+    def toProtoWriter(a: Array[Byte], id: Int, alwaysEncode: Boolean): ProtobufWriter =
+      if (a.isEmpty && !alwaysEncode) null else internal.ProtobufWriter.Bytes(a, id)
+  }
+
   final case class Transform[A, B](from: (Registers, RegisterOffset, A) => B, to: (Registers, RegisterOffset, B) => A, codec: ProtobufCodec[A])
     extends ProtobufCodec[B] {
     def toProtoWriter(b: B, id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean): ProtobufWriter =
@@ -265,6 +270,7 @@ object ProtobufCodec {
       case p: ProtobufCodec.Enum[_]              => p.toProtoWriter(a, id, alwaysEncode)
       case p: ProtobufCodec.Transform[_, _]      => p.toProtoWriter(a, id, registers, offset, alwaysEncode)
       case p: ProtobufCodec.Optional[_]          => p.toProtoWriter(a, id, registers, offset)
+      case p: ProtobufCodec.Bytes.type           => p.toProtoWriter(a, id, alwaysEncode)
     }
 
   private val defaultCompleteBuilders: () => Unit = () => ()
@@ -340,6 +346,7 @@ object ProtobufCodec {
             if (r.packed && (input.getLastTag() & 0x7) == 2) handlePackedRepeated(r, nextOffset)
             else handleRepeated(r, field)
           case r: RepeatedMap[m, k, v] => handleRepeatedMap(r, field)
+          case b: Bytes.type           => input.readByteArray()
         }
 
       var done = false
@@ -457,9 +464,7 @@ object ProtobufCodec {
       case e: ProtobufCodec.Enum[_]              => ProtoIR.Type.EnumRefType(ProtoIR.Fqn(None, e.name))
       case r: ProtobufCodec.Repeated[_, _]       => ProtoIR.Type.ListType(toProtoType(r.element))
       case m: ProtobufCodec.RepeatedMap[_, _, _] =>
-        ProtoIR.Type.MapType(
-          toProtoType(m.element.fields(0).codec),
-          toProtoType(m.element.fields(1).codec)
-        )
+        ProtoIR.Type.MapType(toProtoType(m.element.fields(0).codec), toProtoType(m.element.fields(1).codec))
+      case p: ProtobufCodec.Bytes.type           => ProtoIR.Type.Bytes
     }
 }

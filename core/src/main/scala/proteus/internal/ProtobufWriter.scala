@@ -82,6 +82,11 @@ private[proteus] object ProtobufWriter {
     }
   }
 
+  final case class Bytes(a: Array[Byte], id: Int) extends ProtobufWriter {
+    val innerSize: Int                               = if (id == -1) CodedOutputStream.computeByteArraySizeNoTag(a) else CodedOutputStream.computeByteArraySize(id, a)
+    def write(using output: CodedOutputStream): Unit = if (id == -1) output.writeByteArrayNoTag(a) else output.writeByteArray(id, a)
+  }
+
   def write(writer: ProtobufWriter)(using output: CodedOutputStream): Unit =
     writer match {
       case f: ProtobufWriter.Message         => f.write
@@ -92,6 +97,7 @@ private[proteus] object ProtobufWriter {
       case f: ProtobufWriter.DoublePrimitive => f.write
       case f: ProtobufWriter.Repeated        => f.write
       case f: ProtobufWriter.FloatPrimitive  => f.write
+      case f: ProtobufWriter.Bytes           => f.write
     }
 
   def innerSize(writer: ProtobufWriter): Int =
@@ -104,6 +110,7 @@ private[proteus] object ProtobufWriter {
       case f: ProtobufWriter.DoublePrimitive => f.innerSize
       case f: ProtobufWriter.Repeated        => f.innerSize
       case f: ProtobufWriter.FloatPrimitive  => f.innerSize
+      case f: ProtobufWriter.Bytes           => f.innerSize
     }
 
   def fullSize(writer: ProtobufWriter): Int =
@@ -116,5 +123,6 @@ private[proteus] object ProtobufWriter {
       case f: ProtobufWriter.DoublePrimitive => f.innerSize
       case f: ProtobufWriter.Repeated        => f.fullSize
       case f: ProtobufWriter.FloatPrimitive  => f.innerSize
+      case f: ProtobufWriter.Bytes           => f.innerSize
     }
 }

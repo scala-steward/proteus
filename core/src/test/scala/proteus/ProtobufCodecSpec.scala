@@ -537,6 +537,84 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         assert(decoded)(equalTo(original))
       }
     ),
+    suite("Bytes Primitive")( 
+      test("basic bytes array encoding/decoding") {
+        case class BytesMessage(id: Int, data: Array[Byte]) derives Schema
+        val codec = Schema[BytesMessage].derive(deriver)
+
+        val testData = Array[Byte](1, 2, 3, 4, 5, -1, -128, 127)
+        val original = BytesMessage(1, testData)
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded.id)(equalTo(original.id)) &&
+          assert(decoded.data)(equalTo(original.data))
+      },
+      test("empty byte array encoding/decoding") {
+        case class EmptyBytesMessage(id: Int, data: Array[Byte]) derives Schema
+        val codec = Schema[EmptyBytesMessage].derive(deriver)
+
+        val original = EmptyBytesMessage(1, Array.empty[Byte])
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded.id)(equalTo(original.id)) &&
+          assert(decoded.data)(equalTo(original.data))
+      },
+      test("optional bytes None vs Some(empty) vs Some(data)") {
+        case class OptionalBytesMessage(id: Int, data: Option[Array[Byte]]) derives Schema
+        val codec = Schema[OptionalBytesMessage].derive(deriver)
+
+        val messageWithNone      = OptionalBytesMessage(1, None)
+        val messageWithEmpty     = OptionalBytesMessage(1, Some(Array.empty[Byte]))
+        val messageWithData      = OptionalBytesMessage(1, Some(Array[Byte](1, 2, 3)))
+
+        val encodedNone  = codec.encode(messageWithNone)
+        val encodedEmpty = codec.encode(messageWithEmpty)
+        val encodedData  = codec.encode(messageWithData)
+
+        val decodedNone  = codec.decode(encodedNone)
+        val decodedEmpty = codec.decode(encodedEmpty)
+        val decodedData  = codec.decode(encodedData)
+
+        assert(decodedNone.id)(equalTo(messageWithNone.id)) &&
+          assert(decodedNone.data)(equalTo(messageWithNone.data)) &&
+          assert(decodedEmpty.id)(equalTo(messageWithEmpty.id)) &&
+          assert(decodedEmpty.data.map(_.toSeq))(equalTo(messageWithEmpty.data.map(_.toSeq))) &&
+          assert(decodedData.id)(equalTo(messageWithData.id)) &&
+          assert(decodedData.data.map(_.toSeq))(equalTo(messageWithData.data.map(_.toSeq))) &&
+          assert(encodedNone.length)(isLessThan(encodedEmpty.length)) &&
+          assert(encodedEmpty.length)(isLessThan(encodedData.length))
+      },
+      test("bytes field in nested messages") {
+        case class InnerMessage(data: Array[Byte], label: String) derives Schema
+        case class OuterMessage(id: Int, inner: InnerMessage) derives Schema
+        val codec = Schema[OuterMessage].derive(deriver)
+
+        val testData = Array[Byte](-1, 0, 1, 127, -128)
+        val original = OuterMessage(1, InnerMessage(testData, "test"))
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded.id)(equalTo(original.id)) &&
+          assert(decoded.inner.data)(equalTo(original.inner.data)) &&
+          assert(decoded.inner.label)(equalTo(original.inner.label))
+      },
+      test("multiple bytes fields in same message") {
+        case class MultipleBytesMessage(id: Int, data1: Array[Byte], data2: Array[Byte]) derives Schema
+        val codec = Schema[MultipleBytesMessage].derive(deriver)
+
+        val data1 = Array[Byte](1, 2, 3)
+        val data2 = Array[Byte](4, 5, 6, 7, 8)
+        val original = MultipleBytesMessage(1, data1, data2)
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded.id)(equalTo(original.id)) &&
+          assert(decoded.data1)(equalTo(original.data1)) &&
+          assert(decoded.data2)(equalTo(original.data2))
+      }
+    ),
     suite("Error Handling")(
       test("decode invalid data returns error") {
         case class TestMessage(id: Int) derives Schema

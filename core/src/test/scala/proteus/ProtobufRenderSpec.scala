@@ -130,6 +130,23 @@ message Phone {
 """
 
         assertTrue(rendered == expected)
+      },
+      test("bytes primitive renders correctly") {
+        case class BytesMessage(id: Int, data: Array[Byte], optionalData: Option[Array[Byte]]) derives Schema
+        val codec    = Schema[BytesMessage].derive(deriver)
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message BytesMessage {
+    int32 id = 1;
+    bytes data = 2;
+    optional bytes optional_data = 3;
+}
+"""
+
+        assertTrue(rendered == expected)
       }
     ),
     suite("Modifier Rendering")(
