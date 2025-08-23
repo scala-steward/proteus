@@ -86,6 +86,47 @@ object Fs2BackendSpec extends ZIOSpecDefault {
 
       assertTrue(result.contains("test.package.TestService"))
     },
+    test("should handle bytes fields via gRPC reflection") {
+      val result = Dispatcher
+        .parallel[IO]
+        .use { dispatcher =>
+          val backend       = Fs2ServerBackend[IO](dispatcher)
+          val serverService = ServerServiceBuilder(using backend)
+            .rpc(complexRpc, processComplexRequestFs2)
+            .build(testService)
+
+          val port              = 6021
+          val reflectionService = io.grpc.protobuf.services.ProtoReflectionServiceV1.newInstance
+          val server            = NettyServerBuilder.forPort(port).addService(serverService.definition).addService(reflectionService).build().start()
+          val channel           = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
+          val clientBackend     = new Fs2ClientBackend[IO](channel, dispatcher)
+
+          val program = for {
+            client    <- reflectionClient(clientBackend)
+            // Request file descriptor for the reflection service itself (which should be available)
+            responses <- client(
+                           Stream.emit(
+                             ServerReflectionRequest("localhost", MessageRequest.FileContainingSymbol("grpc.reflection.v1.ServerReflection"))
+                           )
+                         ).compile.toList
+
+            result = responses.headOption.collect {
+                       case ServerReflectionResponse(_, _, MessageResponse.FileDescriptorResponse(fileDescriptorProto)) =>
+                         fileDescriptorProto
+                     }
+          } yield result
+
+          program.guarantee {
+            IO {
+              server.shutdown().awaitTermination(5, TimeUnit.SECONDS): Unit
+              channel.shutdown().awaitTermination(5, TimeUnit.SECONDS): Unit
+            }
+          }
+        }
+        .unsafeRunSync()
+
+      assertTrue(result.exists(_.nonEmpty))
+    },
     test("should handle complex gRPC request/response with fs2 backend") {
       val result = Dispatcher
         .parallel[IO]

@@ -81,6 +81,35 @@ object ZioBackendSpec extends ZIOSpecDefault {
         }.ignore)
         .flatMap(serviceNames => assertTrue(serviceNames.contains("test.package.TestService")))
     },
+    test("should handle bytes fields via gRPC reflection") {
+      val port              = 7021
+      val reflectionService = ProtoReflectionServiceV1.newInstance
+      val server            = NettyServerBuilder.forPort(port).addService(serverService.definition).addService(reflectionService).build().start()
+      val channel           = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
+      val zChannel          = ZChannel(channel, Seq.empty)
+      val clientBackend     = new ZioClientBackend(zChannel)
+
+      val program = for {
+        client    <- reflectionClient(clientBackend)
+        // Request file descriptor for the reflection service itself (which should be available)
+        responses <- client(
+                       ZStream.succeed(
+                         ServerReflectionRequest("localhost", MessageRequest.FileContainingSymbol("grpc.reflection.v1.ServerReflection"))
+                       )
+                     ).runCollect
+
+        result = responses.headOption.collect { case ServerReflectionResponse(_, _, MessageResponse.FileDescriptorResponse(fileDescriptorProto)) =>
+                   fileDescriptorProto
+                 }
+      } yield result
+
+      program
+        .ensuring(ZIO.attempt {
+          server.shutdown().awaitTermination(5, TimeUnit.SECONDS)
+          channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
+        }.ignore)
+        .flatMap(descriptorBytesOpt => assertTrue(descriptorBytesOpt.exists(_.nonEmpty)))
+    },
     test("should handle complex gRPC request/response with zio backend") {
       val port          = 7011
       val server        = NettyServerBuilder.forPort(port).addService(serverService.definition).build().start()
