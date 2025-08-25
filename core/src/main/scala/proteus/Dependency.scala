@@ -53,8 +53,10 @@ case class Dependency(packageName: Option[String], dependencyName: String, types
 
   def renderToFile(options: List[ProtoIR.TopLevelOption], folder: String): Unit = {
     val rendered = render(options)
-    val path     = Path.of(folder, s"$dependencyName.proto")
-    Files.write(path, rendered.getBytes(StandardCharsets.UTF_8)): Unit
+    val fileName = internal.toSnakeCase(dependencyName)
+    val path     = Path.of(folder, s"$fileName.proto")
+    Files.createDirectories(path.getParent)
+    Files.write(path, rendered.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING): Unit
   }
 }
 

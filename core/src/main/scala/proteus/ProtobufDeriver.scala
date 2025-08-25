@@ -384,12 +384,6 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
       case _                                           => throw new Exception(s"Unsupported enum case: $c")
     }
 
-  private def toSnakeCase(s: String): String =
-    s.split("(?=[A-Z])").map(_.toLowerCase).mkString("_")
-
-  private def toUpperSnakeCase(s: String): String =
-    s.split("(?=[A-Z])").map(_.toUpperCase).mkString("_")
-
   private val unitOption = TypeName.option(TypeName.unit)
   private val unitSome   = TypeName.some(TypeName.unit)
 }

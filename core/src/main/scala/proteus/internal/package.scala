@@ -31,3 +31,9 @@ private[proteus] def setToRegister[A](registers: Registers, offset: RegisterOffs
     case reg: Register.Char      => reg.set(registers, offset, value)
     case Register.Unit           => Register.Unit.set(registers, offset, value)
   }
+
+private[proteus] def toSnakeCase(s: String): String =
+  s.split("(?=[A-Z])").map(_.toLowerCase).mkString("_")
+
+private[proteus] def toUpperSnakeCase(s: String): String =
+  s.split("(?=[A-Z])").map(_.toUpperCase).mkString("_")
