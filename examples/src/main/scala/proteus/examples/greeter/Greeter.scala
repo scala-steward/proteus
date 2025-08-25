@@ -11,4 +11,4 @@ given ProtobufDeriver = ProtobufDeriver()
 
 val sayHelloRpc = Rpc.unary[HelloRequest, HelloReply]("SayHello")
 
-val greeterService = Service("examples.greeter", "Greeter").rpc(sayHelloRpc)
+val greeterService = Service("examples", "Greeter").rpc(sayHelloRpc)

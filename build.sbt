@@ -87,6 +87,8 @@ lazy val benchmarks = project
   .dependsOn(core)
   .enablePlugins(JmhPlugin)
 
+lazy val generateProtos = taskKey[Unit]("Generate proto files")
+
 lazy val examples = project
   .in(file("examples"))
   .settings(name := "proteus-examples")
@@ -97,7 +99,8 @@ lazy val examples = project
       Seq(
         "io.grpc" % "grpc-netty"    % grpcVersion,
         "io.grpc" % "grpc-services" % grpcVersion
-      )
+      ),
+    generateProtos := (Compile / runMain).toTask(" proteus.examples.greeter.Protogen").value
   )
   .dependsOn(grpc)
 
