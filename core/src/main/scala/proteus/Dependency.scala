@@ -1,10 +1,13 @@
 package proteus
 
-import com.google.protobuf.DescriptorProtos.FileDescriptorProto
+import java.nio.charset.StandardCharsets
+import java.nio.file.*
+
+import com.google.protobuf.DescriptorProtos.*
 import com.google.protobuf.Descriptors.FileDescriptor
 import zio.blocks.schema.Schema
 
-case class Dependency private (packageName: Option[String], dependencyName: String, types: Set[ProtoIR.TopLevelDef], dependencies: List[Dependency]) {
+case class Dependency(packageName: Option[String], dependencyName: String, types: Set[ProtoIR.TopLevelDef], dependencies: List[Dependency]) {
   val typeReferences       = types.flatMap(_.collectTypeReferences).toSet
   val filteredDependencies = dependencies.filter(_.hasAnyOf(typeReferences))
 
@@ -47,6 +50,12 @@ case class Dependency private (packageName: Option[String], dependencyName: Stri
       )
     )
   }
+
+  def renderToFile(options: List[ProtoIR.TopLevelOption], folder: String): Unit = {
+    val rendered = render(options)
+    val path     = Path.of(folder, s"$dependencyName.proto")
+    Files.write(path, rendered.getBytes(StandardCharsets.UTF_8)): Unit
+  }
 }
 
 object Dependency {
@@ -55,22 +64,4 @@ object Dependency {
 
   def apply(packageName: String, dependencyName: String): Dependency =
     Dependency(Some(packageName), dependencyName, Set.empty, Nil)
-
-  def fromServices(dependencyName: String, services: Service[?]*): Dependency =
-    fromServices(None, dependencyName, services*)
-
-  def fromServices(packageName: Option[String], dependencyName: String, services: Service[?]*): Dependency = {
-    val allTypes = services.flatMap(_.toProtoIR).toSet
-
-    val requestResponseTypeNames =
-      services.flatMap(_.rpcs.flatMap(rpc => List(rpc.toProtoIR.request.fqn.name, rpc.toProtoIR.response.fqn.name))).toSet
-
-    val commonTypes = allTypes.filterNot {
-      case ProtoIR.TopLevelDef.MessageDef(msg)  => requestResponseTypeNames.contains(msg.name)
-      case ProtoIR.TopLevelDef.EnumDef(enumDef) => requestResponseTypeNames.contains(enumDef.name)
-      case ProtoIR.TopLevelDef.ServiceDef(_)    => true
-    }
-
-    Dependency(packageName, dependencyName, commonTypes, Nil)
-  }
 }

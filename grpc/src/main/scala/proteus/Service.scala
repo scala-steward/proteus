@@ -1,5 +1,8 @@
 package proteus
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.*
+
 import com.google.protobuf.DescriptorProtos.*
 import com.google.protobuf.Descriptors.FileDescriptor
 
@@ -46,6 +49,12 @@ case class Service[Rpcs] private (packageName: Option[String], name: String, rpc
       )
     )
   }
+
+  def renderToFile(options: List[ProtoIR.TopLevelOption], folder: String, dependencies: Dependency*): Unit = {
+    val rendered = render(options, dependencies*)
+    val path     = Path.of(folder, s"$name.proto")
+    Files.write(path, rendered.getBytes(StandardCharsets.UTF_8)): Unit
+  }
 }
 
 object Service {
@@ -54,4 +63,25 @@ object Service {
 
   def apply(packageName: String, name: String): Service[Any] =
     Service(Some(packageName), name, List.empty)
+}
+
+extension (dep: Dependency.type) {
+
+  def fromServices(dependencyName: String, services: Service[?]*): Dependency =
+    fromServices(None, dependencyName, services*)
+
+  def fromServices(packageName: Option[String], dependencyName: String, services: Service[?]*): Dependency = {
+    val allTypes = services.flatMap(_.toProtoIR).toSet
+
+    val requestResponseTypeNames =
+      services.flatMap(_.rpcs.flatMap(rpc => List(rpc.toProtoIR.request.fqn.name, rpc.toProtoIR.response.fqn.name))).toSet
+
+    val commonTypes = allTypes.filterNot {
+      case ProtoIR.TopLevelDef.MessageDef(msg)  => requestResponseTypeNames.contains(msg.name)
+      case ProtoIR.TopLevelDef.EnumDef(enumDef) => requestResponseTypeNames.contains(enumDef.name)
+      case ProtoIR.TopLevelDef.ServiceDef(_)    => true
+    }
+
+    Dependency(packageName, dependencyName, commonTypes, Nil)
+  }
 }
