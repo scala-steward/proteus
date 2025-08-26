@@ -170,6 +170,7 @@ object ProtobufCodec {
           case o: ProtobufCodec.Optional[_]          => findNested(o.codec)
           case r: ProtobufCodec.Repeated[_, _]       => findNested(r.element)
           case r: ProtobufCodec.RepeatedMap[_, _, _] => findNested(r.element)
+          case d: ProtobufCodec.Deferred[_]          => findNested(d.codec)
           case _                                     => Nil
         }
 
@@ -202,6 +203,7 @@ object ProtobufCodec {
             case None        => null
             case Some(value) => toElementProtoWriter(p.codec)(id, registers, offset)(value)
           }
+        case d: ProtobufCodec.Deferred[_]     => toElementProtoWriter(d.codec)
         case _                                => throw new Exception(s"Invalid codec inside repeated: $codec")
       }
 
@@ -254,6 +256,13 @@ object ProtobufCodec {
       ProtobufCodec.toProtoWriter(codec, to(registers, offset, b), id, registers, offset, alwaysEncode)
   }
 
+  final case class Deferred[A](thunk: () => ProtobufCodec[A]) extends ProtobufCodec[A] {
+    lazy val codec = thunk()
+
+    def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean): ProtobufWriter =
+      ProtobufCodec.toProtoWriter(codec, a, id, registers, offset, alwaysEncode)
+  }
+
   final case class Optional[A](codec: ProtobufCodec[A]) extends ProtobufCodec[Option[A]] {
     def toProtoWriter(a: Option[A], id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter = a match {
       case None        => null
@@ -271,6 +280,7 @@ object ProtobufCodec {
       case p: ProtobufCodec.Transform[_, _]      => p.toProtoWriter(a, id, registers, offset, alwaysEncode)
       case p: ProtobufCodec.Optional[_]          => p.toProtoWriter(a, id, registers, offset)
       case p: ProtobufCodec.Bytes.type           => p.toProtoWriter(a, id, alwaysEncode)
+      case d: ProtobufCodec.Deferred[_]          => d.toProtoWriter(a, id, registers, offset, alwaysEncode)
     }
 
   private val defaultCompleteBuilders: () => Unit = () => ()
@@ -347,6 +357,7 @@ object ProtobufCodec {
             else handleRepeated(r, field)
           case r: RepeatedMap[m, k, v] => handleRepeatedMap(r, field)
           case b: Bytes.type           => input.readByteArray()
+          case d: Deferred[_]          => loop(d.codec, field)
         }
 
       var done = false
@@ -382,6 +393,9 @@ object ProtobufCodec {
           case m: Transform[_, _] =>
             val getElement = loop(m.codec, offset)
             () => m.from(registers, offset, getElement())
+          case d: Deferred[_]     =>
+            val getElement = loop(d.codec, offset)
+            () => getElement()
           case _                  => throw new Exception(s"Invalid packed type: $codec")
         }
 
@@ -398,6 +412,7 @@ object ProtobufCodec {
       codec match {
         case m: Message[_]      => handleMessage(m, offset)
         case m: Transform[_, _] => m.from(registers, offset, loop(m.codec, offset))
+        case d: Deferred[_]     => loop(d.codec, offset)
         case _                  => throw new Exception(s"Invalid root codec: $codec")
       }
 
@@ -416,6 +431,7 @@ object ProtobufCodec {
     codec match {
       case t: ProtobufCodec.Transform[_, _] => isOptional(using t.codec)
       case _: ProtobufCodec.Optional[_]     => true
+      case d: ProtobufCodec.Deferred[_]     => isOptional(using d.codec)
       case _                                => false
     }
 
@@ -434,6 +450,7 @@ object ProtobufCodec {
         case o: ProtobufCodec.Optional[_]          => findTopLevelDefs(o.codec)
         case r: ProtobufCodec.Repeated[_, _]       => findTopLevelDefs(r.element)
         case r: ProtobufCodec.RepeatedMap[_, _, _] => findTopLevelDefs(r.element)
+        case d: ProtobufCodec.Deferred[_]          => findTopLevelDefs(d.codec)
         case e: ProtobufCodec.Enum[_]              =>
           if (visited.contains(e.name)) Nil
           else {
@@ -450,6 +467,7 @@ object ProtobufCodec {
     codec match {
       case t: ProtobufCodec.Transform[_, _]      => toProtoType(t.codec)
       case o: ProtobufCodec.Optional[_]          => toProtoType(o.codec)
+      case d: ProtobufCodec.Deferred[_]          => toProtoType(d.codec)
       case p: ProtobufCodec.Primitive[_]         =>
         p.primitiveType match {
           case _: PrimitiveType.Int     => ProtoIR.Type.Int32

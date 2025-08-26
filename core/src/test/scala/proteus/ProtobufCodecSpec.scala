@@ -537,7 +537,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         assert(decoded)(equalTo(original))
       }
     ),
-    suite("Bytes Primitive")( 
+    suite("Bytes Primitive")(
       test("message with bytes array encoding/decoding") {
         case class BytesMessage(id: Int, data: Array[Byte]) derives Schema
         val codec = Schema[BytesMessage].derive(deriver)
@@ -565,9 +565,9 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         case class OptionalBytesMessage(id: Int, data: Option[Array[Byte]]) derives Schema
         val codec = Schema[OptionalBytesMessage].derive(deriver)
 
-        val messageWithNone      = OptionalBytesMessage(1, None)
-        val messageWithEmpty     = OptionalBytesMessage(1, Some(Array.empty[Byte]))
-        val messageWithData      = OptionalBytesMessage(1, Some(Array[Byte](1, 2, 3)))
+        val messageWithNone  = OptionalBytesMessage(1, None)
+        val messageWithEmpty = OptionalBytesMessage(1, Some(Array.empty[Byte]))
+        val messageWithData  = OptionalBytesMessage(1, Some(Array[Byte](1, 2, 3)))
 
         val encodedNone  = codec.encode(messageWithNone)
         val encodedEmpty = codec.encode(messageWithEmpty)
@@ -604,8 +604,8 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         case class MultipleBytesMessage(id: Int, data1: Array[Byte], data2: Array[Byte]) derives Schema
         val codec = Schema[MultipleBytesMessage].derive(deriver)
 
-        val data1 = Array[Byte](1, 2, 3)
-        val data2 = Array[Byte](4, 5, 6, 7, 8)
+        val data1    = Array[Byte](1, 2, 3)
+        val data2    = Array[Byte](4, 5, 6, 7, 8)
         val original = MultipleBytesMessage(1, data1, data2)
         val encoded  = codec.encode(original)
         val decoded  = codec.decode(encoded)
@@ -633,6 +633,18 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         val decoded    = codec.decode(emptyBytes)
 
         assert(decoded)(equalTo(TestMessage(0, "", false)))
+      }
+    ),
+    suite("Recursive Types")(
+      test("message with recursive type") {
+        case class Recursive(a: Int, b: Option[Recursive]) derives Schema
+        val codec = Schema[Recursive].derive(deriver)
+
+        val original = Recursive(1, Some(Recursive(2, None)))
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
       }
     )
   )
