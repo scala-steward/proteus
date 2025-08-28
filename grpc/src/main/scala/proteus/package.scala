@@ -45,14 +45,30 @@ extension (field: ProtoIR.Field) {
         fieldBuilder.setLabel(FieldDescriptorProto.Label.LABEL_REPEATED)
         fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_MESSAGE)
         fieldBuilder.setTypeName(s"${field.name.capitalize}Entry")
-        val mapEntryBuilder =
+        val mapEntryBuilder      =
           DescriptorProto.newBuilder().setName(s"${field.name.capitalize}Entry").setOptions(MessageOptions.newBuilder().setMapEntry(true))
-        mapEntryBuilder.addField(
-          FieldDescriptorProto.newBuilder().setName("key").setNumber(1).setType(mapType.keyType.toDescriptorType).build()
-        )
-        mapEntryBuilder.addField(
-          FieldDescriptorProto.newBuilder().setName("value").setNumber(2).setType(mapType.valueType.toDescriptorType).build()
-        )
+        val mapKeyFieldBuilder   = FieldDescriptorProto
+          .newBuilder()
+          .setName("key")
+          .setNumber(1)
+          .setType(mapType.keyType.toDescriptorType)
+        mapType.keyType match {
+          case enumType: ProtoIR.Type.EnumRefType => mapKeyFieldBuilder.setTypeName(enumType.fqn.render)
+          case messageType: ProtoIR.Type.RefType  => mapKeyFieldBuilder.setTypeName(messageType.fqn.render)
+          case _                                  =>
+        }
+        mapEntryBuilder.addField(mapKeyFieldBuilder.build())
+        val mapValueFieldBuilder = FieldDescriptorProto
+          .newBuilder()
+          .setName("value")
+          .setNumber(2)
+          .setType(mapType.valueType.toDescriptorType)
+        mapType.valueType match {
+          case enumType: ProtoIR.Type.EnumRefType => mapValueFieldBuilder.setTypeName(enumType.fqn.render)
+          case messageType: ProtoIR.Type.RefType  => mapValueFieldBuilder.setTypeName(messageType.fqn.render)
+          case _                                  =>
+        }
+        mapEntryBuilder.addField(mapValueFieldBuilder.build())
         builder.addNestedType(mapEntryBuilder.build())
       case enumType: ProtoIR.Type.EnumRefType =>
         fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_ENUM)
