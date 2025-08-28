@@ -29,7 +29,7 @@ object RenderSpec extends ZIOSpecDefault {
     suite("Service Rendering")(
       test("should only include used dependencies in rendered proto") {
         val renderedProto = serviceWithShared.render(options, sharedDep, unusedDep)
-        val expected = """syntax = "proto3";
+        val expected      = """syntax = "proto3";
 
 package test.package;
 
@@ -61,7 +61,7 @@ message ResponseWithShared {
         val addressDep  = Dependency("address.proto").add[Address]
 
         val renderedProto = testService.render(options, priorityDep, contactDep, addressDep)
-        val expected = """syntax = "proto3";
+        val expected      = """syntax = "proto3";
 
 package test.package;
 
@@ -115,7 +115,7 @@ message ComplexResponse {
         val unusedDep2 = Dependency("unused2.proto").add[SharedMessage]
 
         val renderedProto = metadataService.render(options, unusedDep1, unusedDep2)
-        val expected = """syntax = "proto3";
+        val expected      = """syntax = "proto3";
 
 package test.package;
 
@@ -141,7 +141,7 @@ message MetadataResponse {
       },
       test("should include package name and options in rendered proto") {
         val renderedProto = testService.render(options)
-        val expected = """syntax = "proto3";
+        val expected      = """syntax = "proto3";
 
 package test.package;
 
@@ -217,7 +217,7 @@ message ComplexResponse {
     int64 timestamp = 12;
 }
 """
-        
+
         assertTrue(renderedProto == expected)
       },
       test("should handle complex nested type references") {
@@ -227,7 +227,7 @@ message ComplexResponse {
           .add[Address]
 
         val renderedProto = testService.render(options, complexDep)
-        val expected = """syntax = "proto3";
+        val expected      = """syntax = "proto3";
 
 package test.package;
 
@@ -276,7 +276,7 @@ message ComplexResponse {
         val streamDep = Dependency("stream_types.proto").add[StreamRequest].add[StreamResponse]
 
         val renderedProto = streamingService.render(options, streamDep)
-        val expected = """syntax = "proto3";
+        val expected      = """syntax = "proto3";
 
 package test.package;
 
@@ -301,7 +301,7 @@ service StreamingService {
 
         val service         = Service("TestService").rpc(Rpc.unary[ComplexRequest, ComplexResponse]("Test"))
         val serviceRendered = service.render(options, priorityDep, addressDep, unusedDep)
-        val expected = """syntax = "proto3";
+        val expected        = """syntax = "proto3";
 
 option java_package = com.test.proto;
 option csharp_namespace = Test.Proto;
@@ -374,7 +374,7 @@ message ComplexResponse {
 
         val service         = Service("SimpleService").rpc(Rpc.unary[RequestWithShared, ResponseWithShared]("Process"))
         val serviceRendered = service.render(options, sharedDep, unusedDep)
-        val expected = """syntax = "proto3";
+        val expected        = """syntax = "proto3";
 
 option java_package = com.test.proto;
 option csharp_namespace = Test.Proto;
@@ -403,7 +403,7 @@ message ResponseWithShared {
       test("should render dependency with simple types") {
         val simpleDep = Dependency("test.package", "simple.proto").add[SharedMessage]
         val rendered  = simpleDep.render(options)
-        val expected = """syntax = "proto3";
+        val expected  = """syntax = "proto3";
 
 package test.package;
 
@@ -440,7 +440,7 @@ enum Priority {
           .add[Address]
           .add[ContactMethod]
         val rendered   = complexDep.render(options)
-        val expected = """syntax = "proto3";
+        val expected   = """syntax = "proto3";
 
 option java_package = com.test.proto;
 option csharp_namespace = Test.Proto;
@@ -634,7 +634,7 @@ message Slack {
 
         val dependency = Dependency.fromServices("common.proto", service1, service2)
         val rendered   = dependency.render(options)
-        val expected = """syntax = "proto3";
+        val expected   = """syntax = "proto3";
 
 option java_package = com.test.proto;
 option csharp_namespace = Test.Proto;
@@ -684,7 +684,7 @@ message Slack {
 
         val dependency = Dependency.fromServices("shared.proto", testService)
         val rendered   = dependency.render(options)
-        val expected = """syntax = "proto3";
+        val expected   = """syntax = "proto3";
 
 option java_package = com.test.proto;
 option csharp_namespace = Test.Proto;
@@ -704,7 +704,7 @@ option csharp_namespace = Test.Proto;
 
         val dependency = Dependency.fromServices("shared.proto", service1, service2)
         val rendered   = dependency.render(options)
-        val expected = """syntax = "proto3";
+        val expected   = """syntax = "proto3";
 
 option java_package = com.test.proto;
 option csharp_namespace = Test.Proto;

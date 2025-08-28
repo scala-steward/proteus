@@ -4,7 +4,7 @@ import java.util.concurrent.TimeUnit
 
 import io.grpc.{Server, ServerBuilder}
 
-import proteus.server.{DirectServerBackend, ServerServiceBuilder}
+import proteus.server.{DirectServerBackend, ServerService}
 
 class GreeterServer(port: Int) {
   private def sayHello(request: HelloRequest): HelloReply = {
@@ -12,9 +12,7 @@ class GreeterServer(port: Int) {
     HelloReply(s"Hello, ${request.name}!")
   }
 
-  private val service =
-    ServerServiceBuilder(using DirectServerBackend).rpc(sayHelloRpc, sayHello).build(greeterService).definition
-
+  private val service        = ServerService(using DirectServerBackend).rpc(sayHelloRpc, sayHello).build(greeterService)
   private val server: Server = ServerBuilder.forPort(port).addService(service).build()
 
   def start(): Unit = {

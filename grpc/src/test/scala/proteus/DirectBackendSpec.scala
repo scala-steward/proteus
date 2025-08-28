@@ -8,25 +8,25 @@ import zio.test.*
 
 import proteus.GrpcTestUtils.*
 import proteus.client.DirectClientBackend
-import proteus.server.{DirectServerBackend, RequestResponseMetadata, ServerServiceBuilder}
+import proteus.server.{DirectServerBackend, RequestResponseMetadata, ServerService}
 
 object DirectBackendSpec extends ZIOSpecDefault {
 
-  val serverService = ServerServiceBuilder(using DirectServerBackend)
+  val testServiceDef = ServerService(using DirectServerBackend)
     .rpc(complexRpc, processComplexRequest)
     .build(testService)
 
-  val metadataServerService = ServerServiceBuilder(using DirectServerBackend)
+  val metadataServiceDef = ServerService(using DirectServerBackend)
     .rpcWithContext(metadataRpc, processWithMetadata)
     .build(metadataService)
 
   def spec = suite("DirectBackendSpec")(
     test("should discover services via gRPC reflection") {
-      assertTrue(testReflection(9000, serverService.definition))
+      assertTrue(testReflection(9000, testServiceDef))
     },
     test("should handle complex gRPC request/response with direct backend") {
       val port    = 9001
-      val server  = NettyServerBuilder.forPort(port).addService(serverService.definition).build().start()
+      val server  = NettyServerBuilder.forPort(port).addService(testServiceDef).build().start()
       val channel = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
       val client  = new DirectClientBackend(channel).client(testService, complexRpc)
 
@@ -46,7 +46,7 @@ object DirectBackendSpec extends ZIOSpecDefault {
     },
     test("should handle client and server metadata") {
       val port    = 9002
-      val server  = NettyServerBuilder.forPort(port).addService(metadataServerService.definition).build().start()
+      val server  = NettyServerBuilder.forPort(port).addService(metadataServiceDef).build().start()
       val channel = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
       val client  = new DirectClientBackend(channel).clientWithMetadata(metadataService, metadataRpc)
 

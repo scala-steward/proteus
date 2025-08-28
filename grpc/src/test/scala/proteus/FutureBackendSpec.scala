@@ -11,7 +11,7 @@ import zio.test.*
 
 import proteus.GrpcTestUtils.*
 import proteus.client.FutureClientBackend
-import proteus.server.{FutureServerBackend, RequestResponseMetadata, ServerServiceBuilder}
+import proteus.server.{FutureServerBackend, RequestResponseMetadata, ServerService}
 
 object FutureBackendSpec extends ZIOSpecDefault {
 
@@ -21,21 +21,21 @@ object FutureBackendSpec extends ZIOSpecDefault {
   def processWithMetadataFuture(req: MetadataRequest, ctx: RequestResponseMetadata): Future[MetadataResponse] =
     Future.successful(processWithMetadata(req, ctx))
 
-  val serverService = ServerServiceBuilder(using FutureServerBackend)
+  val testServiceDef = ServerService(using FutureServerBackend)
     .rpc(complexRpc, processComplexRequestFuture)
     .build(testService)
 
-  val metadataServerService = ServerServiceBuilder(using FutureServerBackend)
+  val metadataServiceDef = ServerService(using FutureServerBackend)
     .rpcWithContext(metadataRpc, processWithMetadataFuture)
     .build(metadataService)
 
   def spec = suite("FutureBackendSpec")(
     test("should discover services via gRPC reflection") {
-      assertTrue(testReflection(8000, serverService.definition))
+      assertTrue(testReflection(8000, testServiceDef))
     },
     test("should handle complex gRPC request/response with future backend") {
       val port         = 8001
-      val server       = NettyServerBuilder.forPort(port).addService(serverService.definition).build().start()
+      val server       = NettyServerBuilder.forPort(port).addService(testServiceDef).build().start()
       val channel      = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
       val clientFuture = new FutureClientBackend(channel).client(testService, complexRpc)
       val client       = Await.result(clientFuture, 5.seconds)
@@ -56,7 +56,7 @@ object FutureBackendSpec extends ZIOSpecDefault {
     },
     test("should handle client and server metadata") {
       val port         = 8002
-      val server       = NettyServerBuilder.forPort(port).addService(metadataServerService.definition).build().start()
+      val server       = NettyServerBuilder.forPort(port).addService(metadataServiceDef).build().start()
       val channel      = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
       val clientFuture = new FutureClientBackend(channel).clientWithMetadata(metadataService, metadataRpc)
       val client       = Await.result(clientFuture, 5.seconds)

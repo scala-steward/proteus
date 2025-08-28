@@ -24,9 +24,9 @@ val greeterService = Service("examples.greeter", "Greeter")
 **Server** (`GreeterServer.scala`):
 ```scala
 class GreeterServer(port: Int) {
-  private val service = ServerServiceBuilder(using DirectServerBackend)
+  private val service = ServerService(using DirectServerBackend)
     .rpc(sayHelloRpc, sayHello)
-    .build(greeterService).definition
+    .build(greeterService)
 
   private val server = ServerBuilder.forPort(port).addService(service).build()
 }
