@@ -441,10 +441,12 @@ object ProtobufCodec {
     def findTopLevelDefs[A](codec: ProtobufCodec[A]): List[ProtoIR.TopLevelDef] =
       codec match {
         case m: ProtobufCodec.Message[_]           =>
-          if (m.name.isEmpty || m.nested || visited.contains(m.name)) Nil
+          if (m.nested || visited.contains(m.name)) Nil
           else {
-            visited.add(m.name)
-            ProtoIR.TopLevelDef.MessageDef(m.toProtoIR) :: m.fields.map(_.codec).flatMap(findTopLevelDefs)
+            if (!m.name.isEmpty) {
+              visited.add(m.name): Unit
+              ProtoIR.TopLevelDef.MessageDef(m.toProtoIR) :: m.fields.map(_.codec).flatMap(findTopLevelDefs)
+            } else m.fields.map(_.codec).flatMap(findTopLevelDefs)
           }
         case t: ProtobufCodec.Transform[_, _]      => findTopLevelDefs(t.codec)
         case o: ProtobufCodec.Optional[_]          => findTopLevelDefs(o.codec)

@@ -19,9 +19,13 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
   val nestedModifier = Modifier.config("proteus.nested", "true")
   val oneofModifier  = Modifier.config("proteus.oneof", "true")
 
-  private val instanceCache = java.util.concurrent.ConcurrentHashMap[TypeName[?], ProtobufCodec[Any]]()
-  private val visited       = java.util.IdentityHashMap[TypeName[?], Unit]()
-  private val recursive     = java.util.IdentityHashMap[TypeName[?], Unit]()
+  private val instanceCache  = java.util.concurrent.ConcurrentHashMap[TypeName[?], ProtobufCodec[Any]]()
+  private val visitedCache   = new ThreadLocal[java.util.IdentityHashMap[TypeName[?], Unit]] {
+    override def initialValue: java.util.IdentityHashMap[TypeName[?], Unit] = new java.util.IdentityHashMap[TypeName[?], Unit]
+  }
+  private val recursiveCache = new ThreadLocal[java.util.IdentityHashMap[TypeName[?], Unit]] {
+    override def initialValue: java.util.IdentityHashMap[TypeName[?], Unit] = new java.util.IdentityHashMap[TypeName[?], Unit]
+  }
 
   def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
@@ -39,6 +43,8 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
     doc: Doc,
     modifiers: Seq[Modifier.Record]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[A]] = {
+    val visited   = visitedCache.get
+    val recursive = recursiveCache.get
     if (visited.containsKey(typeName)) {
       recursive.put(typeName, ())
       Lazy(ProtobufCodec.Deferred(() => instanceCache.get(typeName)).asInstanceOf[ProtobufCodec[A]])
