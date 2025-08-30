@@ -63,13 +63,14 @@ object ProtobufCodec {
     id: Int,
     codec: ProtobufCodec[A],
     register: Register[Any],
-    refine: Any => A,
+    shouldWrite: A => Boolean,
     defaultValue: Any,
     oneOfName: Option[String]
   ) {
+    type Focus = A
     def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
-      val res = refine(getFromRegister(registers, offset, register))
-      if (res == null) null else ProtobufCodec.toProtoWriter(codec, res, id, registers, nextOffset, alwaysEncode = oneOfName.isDefined)
+      val res = getFromRegister(registers, offset, register).asInstanceOf[A]
+      if (shouldWrite(res)) ProtobufCodec.toProtoWriter(codec, res, id, registers, nextOffset, alwaysEncode = oneOfName.isDefined) else null
     }
 
     def toProtoIR: ProtoIR.MessageElement.OneofElement | ProtoIR.MessageElement.FieldElement = {

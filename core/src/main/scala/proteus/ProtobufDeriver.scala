@@ -97,10 +97,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                        caseId,
                        ProtobufCodec.Transform(t.from, t.to, f.codec.asInstanceOf[ProtobufCodec[t.Origin]]),
                        registers(index),
-                       any => {
-                         val a2 = f.refine(to(any.asInstanceOf[A])).asInstanceOf[t.Origin]
-                         if (a2 == null.asInstanceOf[t.Origin]) null.asInstanceOf[A] else from(a2)
-                       },
+                       any => f.shouldWrite(to(any).asInstanceOf[f.Focus]),
                        f.defaultValue,
                        Some(toSnakeCase(field.term.name))
                      )
@@ -126,7 +123,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                      id,
                      Empty.emptyCodec.transform(_ => None, _ => Empty()),
                      registers(index),
-                     v => if (v == None) None else null,
+                     _.isEmpty,
                      null,
                      Some(toSnakeCase(field.term.name))
                    )
@@ -138,7 +135,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                      id,
                      codec.transform(Some(_), _.get),
                      registers(index),
-                     v => if (v.isInstanceOf[Some[?]]) v.asInstanceOf[A] else null.asInstanceOf[A],
+                     _.isDefined,
                      null,
                      Some(toSnakeCase(field.term.name))
                    )
@@ -150,7 +147,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                      id,
                      instance,
                      registers(index),
-                     _.asInstanceOf[A],
+                     _ => true,
                      getDefaultValue(using field.instance),
                      None
                    )
@@ -220,7 +217,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
             id,
             c.instance,
             register.asInstanceOf[Register[Any]],
-            a => if (discriminator.discriminate(a.asInstanceOf[A]) == index) a.asInstanceOf[c.term.Focus] else null.asInstanceOf[c.term.Focus],
+            a => discriminator.discriminate(a.asInstanceOf[A]) == index,
             null,
             Some("value")
           )
@@ -301,8 +298,8 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
           ProtobufCodec.Message(
             "",
             List(
-              ProtobufCodec.MessageField("key", 1, keyInstance, keyRegister, _.asInstanceOf[K], getDefaultValue(using keyInstance), None),
-              ProtobufCodec.MessageField("value", 2, valueInstance, valueRegister, _.asInstanceOf[V], getDefaultValue(using valueInstance), None)
+              ProtobufCodec.MessageField("key", 1, keyInstance, keyRegister, _ => true, getDefaultValue(using keyInstance), None),
+              ProtobufCodec.MessageField("value", 2, valueInstance, valueRegister, _ => true, getDefaultValue(using valueInstance), None)
             ),
             constructor,
             deconstructor,
