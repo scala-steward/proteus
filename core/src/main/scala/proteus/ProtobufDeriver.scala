@@ -55,17 +55,19 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
       val registers     = Reflect.Record.registers(fields.map(_.value).toArray)
       val offset        = Reflect.Record.usedRegisters(registers)
       (if (shouldUnwrap) {
-         val field  = fields.head
-         val offset = RegisterOffset.Zero
-         val reg    = Registers(offset)
+         val field = fields.head
          D.instance(field.value.metadata)
            .map(
              _.transform(
                a => {
+                 val offset = RegisterOffset.Zero
+                 val reg    = Registers(offset)
                  setToRegister(reg, offset, registers(0), a)
                  recordBinding.constructor.construct(reg, offset)
                },
                b => {
+                 val offset = RegisterOffset.Zero
+                 val reg    = Registers(offset)
                  recordBinding.deconstructor.deconstruct(reg, offset, b)
                  getFromRegister(reg, offset, registers(0).asInstanceOf[Register[field.Focus]])
                }
