@@ -77,10 +77,12 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
          Lazy
            .collectAll(fields.map(field => D.instance(field.value.metadata).map(TermInstance(field, _))).toVector)
            .map { fieldsWithInstances =>
-             val reservedIndexes = getReservedIndexes(modifiers)
-             val nested          = modifiers.collectFirst { case `nestedModifier` => true }.getOrElse(false)
-             val builder         = List.newBuilder[ProtobufCodec.MessageField[?]]
-             var id              = 0
+             val reservedIndexes      = getReservedIndexes(modifiers)
+             val fieldReservedIndexes = getReservedIndexes(fieldsWithInstances.flatMap(_.term.modifiers))
+             val allReservedIndexes   = reservedIndexes ++ fieldReservedIndexes
+             val nested               = modifiers.collectFirst { case `nestedModifier` => true }.getOrElse(false)
+             val builder              = List.newBuilder[ProtobufCodec.MessageField[?]]
+             var id                   = 0
 
              def getField[A](index: Int, field: TermInstance[F, A]): Unit =
                field.instance match {
@@ -91,7 +93,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                        if (idIterator.hasNext) idIterator.next
                        else {
                          id += 1
-                         while (reservedIndexes.contains(id)) id += 1
+                         while (allReservedIndexes.contains(id)) id += 1
                          id
                        }
                      builder += ProtobufCodec.MessageField[A](
@@ -111,7 +113,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                        if (idIterator.hasNext) idIterator.next
                        else {
                          id += 1
-                         while (reservedIndexes.contains(id)) id += 1
+                         while (allReservedIndexes.contains(id)) id += 1
                          id
                        }
                      builder += f.copy(id = caseId, register = registers(index), oneOfName = Some(toSnakeCase(field.term.name)))
@@ -119,7 +121,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                  case ProtobufCodec.Optional(codec) if flags.contains(DerivationFlag.OptionalAsOneOf)              =>
                    // add empty case
                    id += 1
-                   while (reservedIndexes.contains(id)) id += 1
+                   while (allReservedIndexes.contains(id)) id += 1
                    builder += ProtobufCodec.MessageField[A](
                      s"no_${toSnakeCase(field.term.name)}",
                      id,
@@ -131,7 +133,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                    )
                    // add value case
                    id += 1
-                   while (reservedIndexes.contains(id)) id += 1
+                   while (allReservedIndexes.contains(id)) id += 1
                    builder += ProtobufCodec.MessageField[A](
                      s"${toSnakeCase(field.term.name)}_value",
                      id,
@@ -143,7 +145,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                    )
                  case instance                                                                                     =>
                    id += 1
-                   while (reservedIndexes.contains(id)) id += 1
+                   while (allReservedIndexes.contains(id)) id += 1
                    builder += ProtobufCodec.MessageField(
                      toSnakeCase(field.term.name),
                      id,

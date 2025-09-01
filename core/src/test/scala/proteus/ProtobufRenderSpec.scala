@@ -334,7 +334,8 @@ message ReservedMessage {
         }
         case class ContactMessage(
           id: Int,
-          @config("proteus.reserved", "3,5") contact: ContactType
+          @config("proteus.reserved", "2,5") contact: ContactType,
+          test: String
         ) derives Schema
 
         val codec    = Schema[ContactMessage].derive(deriver)
@@ -346,9 +347,10 @@ package test;
 message ContactMessage {
     int32 id = 1;
     oneof contact {
-        Email email = 3;
+        Email email = 2;
         Phone phone = 5;
     }
+    string test = 3;
 }
 
 message Email {
