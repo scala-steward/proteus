@@ -264,7 +264,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
         case _                   => false
       }
       if (isByteArray) ProtobufCodec.Bytes.asInstanceOf[ProtobufCodec[C[A]]]
-      else ProtobufCodec.Repeated[C, A](instance, seqBinding.constructor, seqBinding.deconstructor, isPacked(element))
+      else ProtobufCodec.Repeated[C, A](instance, seqBinding.constructor, seqBinding.deconstructor, isPacked(instance))
     }
   }
 
@@ -344,16 +344,17 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
     }
   }
 
-  private def isPacked(schema: Reflect[?, ?]): Boolean =
-    schema match {
-      case p: Reflect.Primitive[?, ?] =>
+  private def isPacked(instance: ProtobufCodec[?]): Boolean =
+    instance match {
+      case p: ProtobufCodec.Primitive[?]    =>
         p.primitiveType match {
           case _: PrimitiveType.Boolean | _: PrimitiveType.Float | _: PrimitiveType.Double | _: PrimitiveType.Int | _: PrimitiveType.Long =>
             true
           case _                                                                                                                          => false
         }
-      case e: Reflect.Variant[?, ?]   => isEnum(e.cases, e.modifiers)
-      case _                          => false
+      case e: ProtobufCodec.Enum[?]         => true
+      case t: ProtobufCodec.Transform[?, ?] => isPacked(t.codec)
+      case _                                => false
     }
 
   private def getTypeName(originalName: String, modifiers: Seq[Modifier]): String =

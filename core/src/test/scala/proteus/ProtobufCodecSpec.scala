@@ -387,6 +387,35 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
         assert(decoded)(equalTo(original))
       },
+      test("message with List of oneofs") {
+        enum Item derives Schema  {
+          case A, B
+        }
+        @config("proteus.oneof", "true")
+        enum Item2 derives Schema {
+          case A, B
+        }
+        val itemCodec: ProtobufCodec[Item] = Schema[Item2]
+          .derive(deriver)
+          .transform(
+            _ match {
+              case Item2.A => Item.A
+              case Item2.B => Item.B
+            },
+            _ match {
+              case Item.A => Item2.A
+              case Item.B => Item2.B
+            }
+          )
+        case class Container(items: List[Item]) derives Schema
+        val containerCodec                 = Schema[Container].deriving(deriver).instance(Schema[Item].reflect.typeName, itemCodec).derive
+
+        val original = Container(List(Item.A))
+        val encoded  = containerCodec.encode(original)
+        val decoded  = containerCodec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
+      },
       test("message with Map field") {
         case class MapMessage(data: Map[String, Int]) derives Schema
         val codec = Schema[MapMessage].derive(deriver)
