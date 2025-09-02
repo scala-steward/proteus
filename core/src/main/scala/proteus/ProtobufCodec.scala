@@ -86,7 +86,6 @@ object ProtobufCodec {
             case r: Repeated[_, _]       => true
             case r: RepeatedMap[_, _, _] => true
             case Transform(_, _, codec)  => loop(codec)
-            case Deferred(thunk)         => loop(thunk())
             case _                       => false
           }
         loop(codec)
@@ -319,12 +318,14 @@ object ProtobufCodec {
           case field: OneofField[?]  => setToRegister(registers, offset, field.register, null)
         }
       } else if (m.mayUseBuilder) {
+        // unpacked repeated fields use a builder that we need to convert to the final object
         val register = m.fields(i) match {
           case field: SimpleField[_] if field.mayUseBuilder =>
             def loop[A](codec: ProtobufCodec[A]): A =
               codec match {
                 case r: Repeated[_, _]         =>
                   val v = getFromRegister(registers, offset, field.register)
+                  // we need this check to do nothing in case it was packed
                   if (v.isInstanceOf[scala.collection.mutable.Builder[?, ?]])
                     r.constructor.resultObject(v.asInstanceOf[r.constructor.ObjectBuilder[Any]]).asInstanceOf[A]
                   else null.asInstanceOf[A]
@@ -333,8 +334,8 @@ object ProtobufCodec {
                   r.constructor.resultObject(v.asInstanceOf[r.constructor.ObjectBuilder[Any, Any]]).asInstanceOf[A]
                 case Transform(from, _, codec) =>
                   val res = loop(codec)
+                  // need to transform the result to the final type
                   if (res != null) from(res) else null.asInstanceOf[A]
-                case Deferred(thunk)           => loop(thunk())
                 case _                         => null.asInstanceOf[A]
               }
 
