@@ -113,5 +113,6 @@ lazy val commonSettings = Def.settings(
     "-Wunused:imports,params,privates,implicits,explicits,nowarn",
     "-Wvalue-discard",
     "-Xkind-projector"
-  )
+  ),
+  Test / fork := true
 )

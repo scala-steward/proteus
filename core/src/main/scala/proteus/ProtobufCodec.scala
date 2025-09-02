@@ -13,6 +13,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 import proteus.ProtobufCodec.MessageField.*
 import proteus.internal.*
+import proteus.internal.FieldMap.FieldMapEntry
 
 sealed trait ProtobufCodec[A] {
   type Focus = A
@@ -156,7 +157,10 @@ object ProtobufCodec {
       case f: SimpleField[?] => List(f)
       case f: OneofField[?]  => f.cases.toList
     }
-    val fieldMap: FieldMap                 = FieldMap(HashMap.from(simpleFields.map(f => f.id -> f)))
+    val fieldMap: FieldMap                 = FieldMap(HashMap.from(fields.zipWithIndex.flatMap {
+      case (f: SimpleField[?], idx) => List(f.id -> FieldMapEntry(f, idx))
+      case (f: OneofField[?], idx)  => f.cases.map(c => c.id -> FieldMapEntry(c, idx)).toList
+    }))
 
     def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter = {
       deconstructor.deconstruct(registers, offset, a)
@@ -295,57 +299,54 @@ object ProtobufCodec {
 
   private val defaultCompleteBuilders: () => Unit = () => ()
 
-  private def setDefaults[A](m: Message[A], registers: Registers, offset: RegisterOffset): Unit = {
+  private def setDefaults[A](m: Message[A], registers: Registers, offset: RegisterOffset, visited: Array[Boolean]): Unit = {
     var i = 0
-    while (i < m.fields.length) {
-      m.fields(i) match {
-        case field: SimpleField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
-        case field: OneofField[?]  => setToRegister(registers, offset, field.register, null)
+    while (i < visited.length) {
+      if (!visited(i)) {
+        m.fields(i) match {
+          case field: SimpleField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
+          case field: OneofField[?]  => setToRegister(registers, offset, field.register, null)
+        }
       }
       i += 1
     }
   }
 
   private def handleMessage[A](m: Message[A], registers: Registers, offset: RegisterOffset)(using input: CodedInputStream): A = {
-    setDefaults(m, registers, offset)
-
+    val visited          = new Array[Boolean](m.fields.length)
     val nextOffset       = RegisterOffset.add(offset, m.constructor.usedRegisters)
     var completeBuilders = defaultCompleteBuilders
 
-    def handleRepeated[C[_], E](r: Repeated[C, E], field: SimpleField[?], transformResult: C[E] => Any): C[E] = {
-      val register     = field.register.asInstanceOf[Register[Any]]
-      val currentValue = getFromRegister(registers, offset, register)
-      val builder =
-        // safe cast because both the default value and a builder are objects
-        if (currentValue.asInstanceOf[AnyRef] eq field.defaultValue.asInstanceOf[AnyRef]) {
+    def handleRepeated[C[_], E](r: Repeated[C, E], field: FieldMapEntry, transformResult: C[E] => Any): C[E] = {
+      val register = field.field.register
+      val builder  =
+        if (!visited(field.index)) {
           val builder  = r.constructor.newObjectBuilder[E]()
           setToRegister(registers, offset, register, builder)
           val previous = completeBuilders
           completeBuilders = () => { previous(); setToRegister(registers, offset, register, transformResult(r.constructor.resultObject(builder))) }
           builder
-        } else currentValue.asInstanceOf[r.constructor.ObjectBuilder[E]]
+        } else getFromRegister(registers, offset, register).asInstanceOf[r.constructor.ObjectBuilder[E]]
       r.constructor.addObject(builder, loop(r.element, field, identity))
       null.asInstanceOf[C[E]]
     }
 
-    def handleRepeatedMap[M[_, _], K, V](r: RepeatedMap[M, K, V], field: SimpleField[?], transformResult: M[K, V] => Any): M[K, V] = {
-      val register     = field.register.asInstanceOf[Register[Any]]
-      val currentValue = getFromRegister(registers, offset, register)
-      val builder =
-        // safe cast because both the default value and a builder are objects
-        if (currentValue.asInstanceOf[AnyRef] eq field.defaultValue.asInstanceOf[AnyRef]) {
+    def handleRepeatedMap[M[_, _], K, V](r: RepeatedMap[M, K, V], field: FieldMapEntry, transformResult: M[K, V] => Any): M[K, V] = {
+      val register = field.field.register
+      val builder  =
+        if (!visited(field.index)) {
           val builder  = r.constructor.newObjectBuilder[K, V]()
           setToRegister(registers, offset, register, builder)
           val previous = completeBuilders
           completeBuilders = () => { previous(); setToRegister(registers, offset, register, transformResult(r.constructor.resultObject(builder))) }
           builder
-        } else currentValue.asInstanceOf[r.constructor.ObjectBuilder[K, V]]
-      val (k, v)       = withLimit(handleMessage(r.element, registers, nextOffset))
+        } else getFromRegister(registers, offset, register).asInstanceOf[r.constructor.ObjectBuilder[K, V]]
+      val (k, v)   = withLimit(handleMessage(r.element, registers, nextOffset))
       r.constructor.addObject(builder, k, v)
       null.asInstanceOf[M[K, V]]
     }
 
-    def loop[A](codec: ProtobufCodec[A], field: SimpleField[?], transformResult: Any => Any): A =
+    def loop[A](codec: ProtobufCodec[A], field: FieldMapEntry, transformResult: Any => Any): A =
       codec match {
         case m: Message[_]           => withLimit(handleMessage(m, registers, nextOffset))
         case p: Primitive[_]         => handlePrimitive(p)
@@ -370,12 +371,14 @@ object ProtobufCodec {
         val fieldId = tag >>> 3
         val field   = m.fieldMap.get(fieldId)
         if (field ne null) {
-          val value = loop(field.codec, field, identity)
-          if (value != null) setToRegister(registers, offset, field.register.asInstanceOf[Register[Any]], value)
+          val value = loop(field.field.codec, field, identity)
+          visited(field.index) = true
+          if (value != null) setToRegister(registers, offset, field.field.register.asInstanceOf[Register[Any]], value)
         } else input.skipField(tag): Unit
       }
     }
     completeBuilders()
+    setDefaults(m, registers, offset, visited)
     m.constructor.construct(registers, offset)
   }
 
