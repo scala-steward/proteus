@@ -295,136 +295,136 @@ object ProtobufCodec {
 
   private val defaultCompleteBuilders: () => Unit = () => ()
 
+  private def setDefaults[A](m: Message[A], registers: Registers, offset: RegisterOffset): Unit = {
+    var i = 0
+    while (i < m.fields.length) {
+      m.fields(i) match {
+        case field: SimpleField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
+        case field: OneofField[?]  => setToRegister(registers, offset, field.register, null)
+      }
+      i += 1
+    }
+  }
+
+  private def handleMessage[A](m: Message[A], registers: Registers, offset: RegisterOffset)(using input: CodedInputStream): A = {
+    setDefaults(m, registers, offset)
+
+    val nextOffset       = RegisterOffset.add(offset, m.constructor.usedRegisters)
+    var completeBuilders = defaultCompleteBuilders
+
+    def handleRepeated[C[_], E](r: Repeated[C, E], field: SimpleField[?], transformResult: C[E] => Any): C[E] = {
+      val register     = field.register.asInstanceOf[Register[Any]]
+      val currentValue = getFromRegister(registers, offset, register)
+      val builder =
+        // safe cast because both the default value and a builder are objects
+        if (currentValue.asInstanceOf[AnyRef] eq field.defaultValue.asInstanceOf[AnyRef]) {
+          val builder  = r.constructor.newObjectBuilder[E]()
+          setToRegister(registers, offset, register, builder)
+          val previous = completeBuilders
+          completeBuilders = () => { previous(); setToRegister(registers, offset, register, transformResult(r.constructor.resultObject(builder))) }
+          builder
+        } else currentValue.asInstanceOf[r.constructor.ObjectBuilder[E]]
+      r.constructor.addObject(builder, loop(r.element, field, identity))
+      null.asInstanceOf[C[E]]
+    }
+
+    def handleRepeatedMap[M[_, _], K, V](r: RepeatedMap[M, K, V], field: SimpleField[?], transformResult: M[K, V] => Any): M[K, V] = {
+      val register     = field.register.asInstanceOf[Register[Any]]
+      val currentValue = getFromRegister(registers, offset, register)
+      val builder =
+        // safe cast because both the default value and a builder are objects
+        if (currentValue.asInstanceOf[AnyRef] eq field.defaultValue.asInstanceOf[AnyRef]) {
+          val builder  = r.constructor.newObjectBuilder[K, V]()
+          setToRegister(registers, offset, register, builder)
+          val previous = completeBuilders
+          completeBuilders = () => { previous(); setToRegister(registers, offset, register, transformResult(r.constructor.resultObject(builder))) }
+          builder
+        } else currentValue.asInstanceOf[r.constructor.ObjectBuilder[K, V]]
+      val (k, v)       = withLimit(handleMessage(r.element, registers, nextOffset))
+      r.constructor.addObject(builder, k, v)
+      null.asInstanceOf[M[K, V]]
+    }
+
+    def loop[A](codec: ProtobufCodec[A], field: SimpleField[?], transformResult: Any => Any): A =
+      codec match {
+        case m: Message[_]           => withLimit(handleMessage(m, registers, nextOffset))
+        case p: Primitive[_]         => handlePrimitive(p)
+        case e: Enum[_]              => e.valuesByIndex(input.readEnum())
+        case t: Transform[_, _]      =>
+          val res = loop(t.codec, field, a => t.from(a.asInstanceOf[t.Origin]))
+          if (res == null) null.asInstanceOf[A] else t.from(res)
+        case o: Optional[_]          => Some(loop(o.codec, field, identity))
+        case r: Repeated[c, e]       =>
+          if (r.packed && (input.getLastTag() & 0x7) == 2) handlePackedRepeated(r, nextOffset)
+          else handleRepeated(r, field, transformResult)
+        case r: RepeatedMap[m, k, v] => handleRepeatedMap(r, field, transformResult)
+        case b: Bytes.type           => input.readByteArray()
+        case d: Deferred[_]          => loop(d.codec, field, transformResult)
+      }
+
+    var done = false
+    while (!done) {
+      val tag = input.readTag()
+      if (tag == 0) done = true
+      else {
+        val fieldId = tag >>> 3
+        val field   = m.fieldMap.get(fieldId)
+        if (field ne null) {
+          val value = loop(field.codec, field, identity)
+          if (value != null) setToRegister(registers, offset, field.register.asInstanceOf[Register[Any]], value)
+        } else input.skipField(tag): Unit
+      }
+    }
+    completeBuilders()
+    m.constructor.construct(registers, offset)
+  }
+
+  private def handlePrimitive[A](p: Primitive[A])(using input: CodedInputStream): A =
+    p.primitiveType match {
+      case _: PrimitiveType.Int     => input.readInt32()
+      case _: PrimitiveType.Long    => input.readInt64()
+      case _: PrimitiveType.Boolean => input.readBool()
+      case _: PrimitiveType.String  => input.readStringRequireUtf8()
+      case _: PrimitiveType.Double  => input.readDouble()
+      case _: PrimitiveType.Float   => input.readFloat()
+      case _                        => throw new Exception(s"Unsupported primitive type: $p")
+    }
+
+  private def handlePackedRepeated[C[_], E](r: Repeated[C, E], offset: RegisterOffset)(using input: CodedInputStream): C[E] = {
+    def loop[A](codec: ProtobufCodec[A], offset: RegisterOffset): () => A =
+      codec match {
+        case p: Primitive[_]    =>
+          p.primitiveType match {
+            case _: PrimitiveType.Int     => () => input.readInt32()
+            case _: PrimitiveType.Long    => () => input.readInt64()
+            case _: PrimitiveType.Boolean => () => input.readBool()
+            case _: PrimitiveType.Double  => () => input.readDouble()
+            case _: PrimitiveType.Float   => () => input.readFloat()
+            case _                        => throw new Exception(s"Unsupported packed primitive type: $p")
+          }
+        case e: Enum[_]         => () => e.valuesByIndex(input.readEnum())
+        case m: Transform[_, _] =>
+          val getElement = loop(m.codec, offset)
+          () => m.from(getElement())
+        case d: Deferred[_]     =>
+          val getElement = loop(d.codec, offset)
+          () => getElement()
+        case _                  => throw new Exception(s"Invalid packed type: $codec")
+      }
+
+    val builder = r.constructor.newObjectBuilder[E]()
+    withLimit {
+      val getElement = loop(r.element, offset)
+      while (input.getBytesUntilLimit > 0)
+        r.constructor.addObject(builder, getElement())
+    }
+    r.constructor.resultObject(builder)
+  }
+
   def read[A](registers: Registers, offset: RegisterOffset, codec: ProtobufCodec[A])(using input: CodedInputStream): A = {
-    def handlePrimitive[A](p: Primitive[A])(using input: CodedInputStream): A =
-      p.primitiveType match {
-        case _: PrimitiveType.Int     => input.readInt32()
-        case _: PrimitiveType.Long    => input.readInt64()
-        case _: PrimitiveType.Boolean => input.readBool()
-        case _: PrimitiveType.String  => input.readStringRequireUtf8()
-        case _: PrimitiveType.Double  => input.readDouble()
-        case _: PrimitiveType.Float   => input.readFloat()
-        case _                        => throw new Exception(s"Unsupported primitive type: $p")
-      }
-
-    def setDefaults[A](m: Message[A], offset: RegisterOffset): Unit = {
-      var i = 0
-      while (i < m.fields.length) {
-        m.fields(i) match {
-          case field: SimpleField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
-          case field: OneofField[?]  => setToRegister(registers, offset, field.register, null)
-        }
-        i += 1
-      }
-    }
-
-    def handleMessage[A](m: Message[A], offset: RegisterOffset): A = {
-      setDefaults(m, offset)
-
-      val nextOffset       = RegisterOffset.add(offset, m.constructor.usedRegisters)
-      var completeBuilders = defaultCompleteBuilders
-
-      def handleRepeated[C[_], E](r: Repeated[C, E], field: SimpleField[?], transformResult: C[E] => Any): C[E] = {
-        val register     = field.register.asInstanceOf[Register[Any]]
-        val currentValue = getFromRegister(registers, offset, register)
-        val builder =
-          // safe cast because both the default value and a builder are objects
-          if (currentValue.asInstanceOf[AnyRef] eq field.defaultValue.asInstanceOf[AnyRef]) {
-            val builder  = r.constructor.newObjectBuilder[E]()
-            setToRegister(registers, offset, register, builder)
-            val previous = completeBuilders
-            completeBuilders = () => { previous(); setToRegister(registers, offset, register, transformResult(r.constructor.resultObject(builder))) }
-            builder
-          } else currentValue.asInstanceOf[r.constructor.ObjectBuilder[E]]
-        r.constructor.addObject(builder, loop(r.element, field, identity))
-        null.asInstanceOf[C[E]]
-      }
-
-      def handleRepeatedMap[M[_, _], K, V](r: RepeatedMap[M, K, V], field: SimpleField[?], transformResult: M[K, V] => Any): M[K, V] = {
-        val register     = field.register.asInstanceOf[Register[Any]]
-        val currentValue = getFromRegister(registers, offset, register)
-        val builder =
-          // safe cast because both the default value and a builder are objects
-          if (currentValue.asInstanceOf[AnyRef] eq field.defaultValue.asInstanceOf[AnyRef]) {
-            val builder  = r.constructor.newObjectBuilder[K, V]()
-            setToRegister(registers, offset, register, builder)
-            val previous = completeBuilders
-            completeBuilders = () => { previous(); setToRegister(registers, offset, register, transformResult(r.constructor.resultObject(builder))) }
-            builder
-          } else currentValue.asInstanceOf[r.constructor.ObjectBuilder[K, V]]
-        val (k, v)       = withLimit(handleMessage(r.element, nextOffset))
-        r.constructor.addObject(builder, k, v)
-        null.asInstanceOf[M[K, V]]
-      }
-
-      def loop[A](codec: ProtobufCodec[A], field: SimpleField[?], transformResult: Any => Any): A =
-        codec match {
-          case m: Message[_]           => withLimit(handleMessage(m, nextOffset))
-          case p: Primitive[_]         => handlePrimitive(p)
-          case e: Enum[_]              => e.valuesByIndex(input.readEnum())
-          case t: Transform[_, _]      =>
-            val res = loop(t.codec, field, a => t.from(a.asInstanceOf[t.Origin]))
-            if (res == null) null.asInstanceOf[A] else t.from(res)
-          case o: Optional[_]          => Some(loop(o.codec, field, identity))
-          case r: Repeated[c, e]       =>
-            if (r.packed && (input.getLastTag() & 0x7) == 2) handlePackedRepeated(r, nextOffset)
-            else handleRepeated(r, field, transformResult)
-          case r: RepeatedMap[m, k, v] => handleRepeatedMap(r, field, transformResult)
-          case b: Bytes.type           => input.readByteArray()
-          case d: Deferred[_]          => loop(d.codec, field, transformResult)
-        }
-
-      var done = false
-      while (!done) {
-        val tag = input.readTag()
-        if (tag == 0) done = true
-        else {
-          val fieldId = tag >>> 3
-          val field   = m.fieldMap.get(fieldId)
-          if (field ne null) {
-            val value = loop(field.codec, field, identity)
-            if (value != null) setToRegister(registers, offset, field.register.asInstanceOf[Register[Any]], value)
-          } else input.skipField(tag): Unit
-        }
-      }
-      completeBuilders()
-      m.constructor.construct(registers, offset)
-    }
-
-    def handlePackedRepeated[C[_], E](r: Repeated[C, E], offset: RegisterOffset): C[E] = {
-      def loop[A](codec: ProtobufCodec[A], offset: RegisterOffset): () => A =
-        codec match {
-          case p: Primitive[_]    =>
-            p.primitiveType match {
-              case _: PrimitiveType.Int     => () => input.readInt32()
-              case _: PrimitiveType.Long    => () => input.readInt64()
-              case _: PrimitiveType.Boolean => () => input.readBool()
-              case _: PrimitiveType.Double  => () => input.readDouble()
-              case _: PrimitiveType.Float   => () => input.readFloat()
-              case _                        => throw new Exception(s"Unsupported packed primitive type: $p")
-            }
-          case e: Enum[_]         => () => e.valuesByIndex(input.readEnum())
-          case m: Transform[_, _] =>
-            val getElement = loop(m.codec, offset)
-            () => m.from(getElement())
-          case d: Deferred[_]     =>
-            val getElement = loop(d.codec, offset)
-            () => getElement()
-          case _                  => throw new Exception(s"Invalid packed type: $codec")
-        }
-
-      val builder = r.constructor.newObjectBuilder[E]()
-      withLimit {
-        val getElement = loop(r.element, offset)
-        while (input.getBytesUntilLimit > 0)
-          r.constructor.addObject(builder, getElement())
-      }
-      r.constructor.resultObject(builder)
-    }
-
     def loop[A](codec: ProtobufCodec[A], offset: RegisterOffset): A =
       codec match {
-        case m: Message[_]      => handleMessage(m, offset)
+        case m: Message[_]      => handleMessage(m, registers, offset)
         case m: Transform[_, _] => m.from(loop(m.codec, offset))
         case d: Deferred[_]     => loop(d.codec, offset)
         case _                  => throw new Exception(s"Invalid root codec: $codec")
