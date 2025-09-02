@@ -173,6 +173,7 @@ object ProtobufCodec {
       case (f: SimpleField[?], idx) => List(f.id -> FieldMapEntry(f, idx))
       case (f: OneofField[?], idx)  => f.cases.map(c => c.id -> FieldMapEntry(c, idx)).toList
     }))
+    val mayUseBuilder: Boolean             = simpleFields.exists(_.mayUseBuilder)
 
     def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter = {
       deconstructor.deconstruct(registers, offset, a)
@@ -317,9 +318,9 @@ object ProtobufCodec {
           case field: SimpleField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
           case field: OneofField[?]  => setToRegister(registers, offset, field.register, null)
         }
-      } else {
+      } else if (m.mayUseBuilder) {
         val register = m.fields(i) match {
-          case field: SimpleField[?] if field.mayUseBuilder =>
+          case field: SimpleField[_] if field.mayUseBuilder =>
             def loop[A](codec: ProtobufCodec[A]): A =
               codec match {
                 case r: Repeated[_, _]         =>
