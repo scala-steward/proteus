@@ -80,12 +80,8 @@ object ProtobufCodec {
       }
     }
 
-    final case class OneofField[A](
-      name: String,
-      cases: Array[SimpleField[?]],
-      register: Register[Any],
-      discriminator: Discriminator[A]
-    ) extends MessageField[A] {
+    final case class OneofField[A](name: String, cases: Array[SimpleField[?]], register: Register[Any], discriminator: Discriminator[A])
+      extends MessageField[A] {
       def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
         val res   = getFromRegister(registers, offset, register).asInstanceOf[A]
         val field = cases(discriminator.discriminate(res))
