@@ -60,14 +60,14 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
           val fieldReservedIndexes = getReservedIndexes(fieldsWithInstances.flatMap(_.term.modifiers))
           val allReservedIndexes   = reservedIndexes ++ fieldReservedIndexes
           val nested               = modifiers.collectFirst { case `nestedModifier` => true }.getOrElse(false)
-          val builder              = List.newBuilder[ProtobufCodec.MessageField[?]]
+          val builder              = Array.newBuilder[ProtobufCodec.MessageField[?]]
           var id                   = 0
 
           def getField[A](index: Int, field: TermInstance[F, A]): Unit = {
             val name     = toSnakeCase(field.term.name)
             val register = registers(index)
             field.instance match {
-              case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, (o: OneofField[inner]) :: Nil, _, _, _, _, true, _)) =>
+              case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneofField[inner]), _, _, _, _, true, _)) =>
                 val idIterator = getReservedIndexes(field.term.modifiers).iterator
                 builder += OneofField(
                   name,
@@ -90,7 +90,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                     def discriminate(a: A): Int = o.discriminator.discriminate(to(a).asInstanceOf[inner])
                   }
                 )
-              case ProtobufCodec.Message(_, (o: OneofField[?]) :: Nil, _, _, _, _, true, _)                                            =>
+              case ProtobufCodec.Message(_, Array(o: OneofField[?]), _, _, _, _, true, _)                                            =>
                 val idIterator = getReservedIndexes(field.term.modifiers).iterator
                 builder += OneofField(
                   name,
@@ -107,7 +107,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                   register,
                   o.discriminator
                 )
-              case ProtobufCodec.Optional(codec) if flags.contains(DerivationFlag.OptionalAsOneOf)                                     =>
+              case ProtobufCodec.Optional(codec) if flags.contains(DerivationFlag.OptionalAsOneOf)                                   =>
                 id += 1
                 while (allReservedIndexes.contains(id)) id += 1
                 val emptyId = id
@@ -128,7 +128,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
                     }
                   }
                 )
-              case instance                                                                                                            =>
+              case instance                                                                                                          =>
                 id += 1
                 while (allReservedIndexes.contains(id)) id += 1
                 builder += SimpleField(name, id, instance, register, getDefaultValue(using field.instance))
@@ -188,7 +188,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
       val discriminator = binding.asInstanceOf[Binding.Variant[A]].discriminator
       Lazy.collectAll(cases.map(c => D.instance(c.value.metadata).map(TermInstance(c, _))).toVector).map { casesWithInstances =>
         val reservedIndexes = getReservedIndexes(modifiers)
-        val builder         = List.newBuilder[ProtobufCodec.MessageField[?]]
+        val builder         = Array.newBuilder[ProtobufCodec.MessageField[?]]
         var id              = 1
         val register        = Register.Object(0)
         builder += OneofField(
@@ -276,7 +276,7 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
         ProtobufCodec.RepeatedMap[M, K, V](
           ProtobufCodec.Message(
             "",
-            List(
+            Array(
               SimpleField("key", 1, keyInstance, keyRegister, getDefaultValue(using keyInstance)),
               SimpleField("value", 2, valueInstance, valueRegister, getDefaultValue(using valueInstance))
             ),

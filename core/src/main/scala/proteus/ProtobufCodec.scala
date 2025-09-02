@@ -148,7 +148,7 @@ object ProtobufCodec {
 
   final case class Message[A](
     name: String,
-    fields: List[MessageField[?]],
+    fields: Array[MessageField[?]],
     constructor: Constructor[A],
     deconstructor: Deconstructor[A],
     usedRegisters: RegisterOffset,
@@ -156,7 +156,7 @@ object ProtobufCodec {
     inline: Boolean,
     nested: Boolean
   ) extends ProtobufCodec[A] {
-    val simpleFields: List[SimpleField[?]] = fields.flatMap {
+    val simpleFields: List[SimpleField[?]] = fields.toList.flatMap {
       case f: SimpleField[?] => List(f)
       case f: OneofField[?]  => f.cases.toList
     }
@@ -166,11 +166,11 @@ object ProtobufCodec {
       deconstructor.deconstruct(registers, offset, a)
       val nextOffset = RegisterOffset.add(offset, usedRegisters)
       val builder    = List.newBuilder[ProtobufWriter]
-      var remaining  = fields
-      while (remaining ne Nil) {
-        val res = remaining.head.toProtoWriter(registers, offset, nextOffset)
+      var i          = 0
+      while (i < fields.length) {
+        val res = fields(i).toProtoWriter(registers, offset, nextOffset)
         if (res ne null) builder += res
-        remaining = remaining.tail
+        i += 1
       }
       internal.ProtobufWriter.Message(id, builder.result())
     }
@@ -312,13 +312,13 @@ object ProtobufCodec {
       }
 
     def setDefaults[A](m: Message[A], offset: RegisterOffset): Unit = {
-      var fields = m.fields
-      while (fields ne Nil) {
-        fields.head match {
+      var i = 0
+      while (i < m.fields.length) {
+        m.fields(i) match {
           case field: SimpleField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
-          case _: OneofField[?]      => // no default value for oneofs
+          case field: OneofField[?]  => setToRegister(registers, offset, field.register, null)
         }
-        fields = fields.tail
+        i += 1
       }
     }
 
