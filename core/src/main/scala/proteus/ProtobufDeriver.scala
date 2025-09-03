@@ -273,23 +273,58 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
     }
     D.instance(key.metadata).flatMap { keyInstance =>
       D.instance(value.metadata).map { valueInstance =>
-        ProtobufCodec.RepeatedMap[M, K, V](
-          ProtobufCodec.Message(
-            "",
-            Array(
-              SimpleField("key", 1, keyInstance, keyRegister, getDefaultValue(using keyInstance)),
-              SimpleField("value", 2, valueInstance, valueRegister, getDefaultValue(using valueInstance))
+        if (isValidKeyType(keyInstance))
+          ProtobufCodec.RepeatedMap[M, K, V](
+            ProtobufCodec.Message(
+              "",
+              Array(
+                SimpleField("key", 1, keyInstance, keyRegister, getDefaultValue(using keyInstance)),
+                SimpleField("value", 2, valueInstance, valueRegister, getDefaultValue(using valueInstance))
+              ),
+              constructor,
+              deconstructor,
+              offset,
+              Set.empty,
+              inline = false,
+              nested = false
             ),
-            constructor,
-            deconstructor,
-            offset,
-            Set.empty,
-            inline = false,
-            nested = false
-          ),
-          mapBinding.constructor,
-          mapBinding.deconstructor
-        )
+            mapBinding.constructor,
+            mapBinding.deconstructor
+          )
+        else
+          ProtobufCodec
+            .Repeated[List, (K, V)](
+              ProtobufCodec.Message(
+                s"${key.typeName.name}${value.typeName.name}Entry",
+                Array(
+                  SimpleField("key", 1, keyInstance, keyRegister, getDefaultValue(using keyInstance)),
+                  SimpleField("value", 2, valueInstance, valueRegister, getDefaultValue(using valueInstance))
+                ),
+                constructor,
+                deconstructor,
+                offset,
+                Set.empty,
+                inline = false,
+                nested = false
+              ),
+              SeqConstructor.listConstructor,
+              SeqDeconstructor.listDeconstructor,
+              packed = false
+            )
+            .transform[M[K, V]](
+              list => {
+                val constructor = mapBinding.constructor
+                val builder     = constructor.newObjectBuilder[K, V]()
+                list.foreach { case (k, v) =>
+                  constructor.addObject(builder, k, v)
+                }
+                constructor.resultObject(builder)
+              },
+              map => {
+                val deconstructor = mapBinding.deconstructor
+                deconstructor.deconstruct(map).toList.map(kv => (deconstructor.getKey(kv), deconstructor.getValue(kv)))
+              }
+            )
       }
     }
   }
@@ -406,6 +441,17 @@ class ProtobufDeriver(flags: Set[DerivationFlag] = Set.empty) extends Deriver[Pr
       case r: Reflect.Record[F, _] if r.fields.isEmpty =>
         hasBinding.record(r.metadata).constructor.construct(Registers(RegisterOffset.Zero), RegisterOffset.Zero)
       case _                                           => throw new Exception(s"Unsupported enum case: $c")
+    }
+
+  private def isValidKeyType[A](codec: ProtobufCodec[A]): Boolean =
+    codec match {
+      case ProtobufCodec.Primitive(primitiveType) =>
+        primitiveType match {
+          case _: PrimitiveType.Int | _: PrimitiveType.Long | _: PrimitiveType.String | _: PrimitiveType.Boolean => true
+          case _                                                                                                 => false
+        }
+      case ProtobufCodec.Transform(_, _, codec)   => isValidKeyType(codec)
+      case _                                      => false
     }
 
   private val unitOption = TypeName.option(TypeName.unit)

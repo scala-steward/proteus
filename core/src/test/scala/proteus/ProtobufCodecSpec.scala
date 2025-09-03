@@ -446,6 +446,17 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
         assert(decoded)(equalTo(original))
       },
+      test("message with Map field with a non-primitive key") {
+        case class Key(value: String) derives Schema
+        case class MapMessage(data: Map[Key, Int]) derives Schema
+        val codec = Schema[MapMessage].derive(deriver)
+
+        val original = MapMessage(Map(Key("key1") -> 1, Key("key2") -> 2, Key("key3") -> 3))
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
+      },
       test("message with empty objects in list") {
         case class EmptyItem(name: String, value: String) derives Schema
         case class EmptyContainer(items: List[EmptyItem]) derives Schema

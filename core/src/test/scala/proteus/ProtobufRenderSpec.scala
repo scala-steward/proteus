@@ -148,6 +148,48 @@ message BytesMessage {
 """
 
         assertTrue(rendered == expected)
+      },
+      test("map field with primitive key renders correctly") {
+        case class MapMessage(id: Int, data: Map[String, Int]) derives Schema
+        val codec    = Schema[MapMessage].derive(deriver)
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message MapMessage {
+    int32 id = 1;
+    map<string, int32> data = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
+      test("map field with message key renders correctly") {
+        case class KeyMessage(value: String) derives Schema
+        case class MapMessage(id: Int, data: Map[KeyMessage, Int]) derives Schema
+        val codec    = Schema[MapMessage].derive(deriver)
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message MapMessage {
+    int32 id = 1;
+    repeated KeyMessageIntEntry data = 2;
+}
+
+message KeyMessageIntEntry {
+    KeyMessage key = 1;
+    int32 value = 2;
+}
+
+message KeyMessage {
+    string value = 1;
+}
+"""
+
+        assertTrue(rendered == expected)
       }
     ),
     suite("Modifier Rendering")(
