@@ -196,14 +196,11 @@ message ForceOneOf {
     }
 }
 
-message First {
-}
+message First {}
 
-message Second {
-}
+message Second {}
 
-message Third {
-}
+message Third {}
 """
 
         assertTrue(rendered == expected)
@@ -426,8 +423,7 @@ message OneOfOptional {
     }
 }
 
-message Empty {
-}
+message Empty {}
 """
 
         assertTrue(standardRendered == expectedStandard) &&

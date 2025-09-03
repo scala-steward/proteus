@@ -31,28 +31,38 @@ object Renderer {
           line(s"$identifier = $intvalue;")
       }
 
-    def renderEnum(enumeration: Enum): Text =
-      many(
-        line(s"enum ${enumeration.name} {"),
-        indent(renderReserved(enumeration.reserved)),
-        indent(enumeration.values.map(renderEnumElement)),
-        line("}")
-      )
+    def renderEnum(enumeration: Enum): Text = {
+      val hasContent = enumeration.reserved.nonEmpty || enumeration.values.nonEmpty
+      if (hasContent) {
+        many(
+          line(s"enum ${enumeration.name} {"),
+          indent(renderReserved(enumeration.reserved)),
+          indent(enumeration.values.map(renderEnumElement)),
+          line("}")
+        )
+      } else line(s"enum ${enumeration.name} {}")
+    }
 
-    def renderMessage(message: Message): Text =
-      many(
-        line(s"message ${message.name} {"),
-        indent(renderReserved(message.reserved)),
-        indent(message.elements.map(renderMessageElement)),
-        line("}")
-      )
+    def renderMessage(message: Message): Text = {
+      val hasContent = message.reserved.nonEmpty || message.elements.nonEmpty
+      if (hasContent) {
+        many(
+          line(s"message ${message.name} {"),
+          indent(renderReserved(message.reserved)),
+          indent(message.elements.map(renderMessageElement)),
+          line("}")
+        )
+      } else line(s"message ${message.name} {}")
+    }
 
     def renderOneof(oneof: Oneof): Text =
-      many(
-        line(s"oneof ${oneof.name} {"),
-        indent(oneof.fields.map(renderField(_, isOneof = true))),
-        line("}")
-      )
+      if (oneof.fields.nonEmpty) {
+        many(
+          line(s"oneof ${oneof.name} {"),
+          indent(oneof.fields.map(renderField(_, isOneof = true))),
+          line("}")
+        )
+      } else line(s"oneof ${oneof.name} {}")
 
     def renderMessageElement(element: MessageElement): Text =
       element match {
@@ -97,12 +107,16 @@ object Renderer {
       statement(s"$optional$ty ${field.name} = ${field.number}$deprecated")
     }
 
-    def renderService(service: Service): Text =
-      many(
-        line(s"service ${service.name} {"),
-        indent(service.rpcs.map(renderRpc)),
-        line("}")
-      )
+    def renderService(service: Service): Text = {
+      val hasContent = service.rpcs.nonEmpty
+      if (hasContent) {
+        many(
+          line(s"service ${service.name} {"),
+          indent(service.rpcs.map(renderRpc)),
+          line("}")
+        )
+      } else line(s"service ${service.name} {}")
+    }
 
     def renderRpc(rpc: Rpc): Text = {
       val requestType  = if (rpc.streamingRequest) s"stream ${rpc.request.fqn.render}" else rpc.request.fqn.render
