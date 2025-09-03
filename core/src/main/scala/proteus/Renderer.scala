@@ -10,7 +10,7 @@ object Renderer {
       statement(s"package $packageName")
 
     def renderOption(opt: TopLevelOption): Text =
-      statement(s"""option ${opt.key} = ${opt.value}""")
+      statement(s"""option ${opt.key} = "${opt.value}"""")
 
     def renderStatement(st: Statement): Text =
       st match {
@@ -107,8 +107,8 @@ object Renderer {
     def renderRpc(rpc: Rpc): Text = {
       val requestType  = if (rpc.streamingRequest) s"stream ${rpc.request.fqn.render}" else rpc.request.fqn.render
       val responseType = if (rpc.streamingResponse) s"stream ${rpc.response.fqn.render}" else rpc.response.fqn.render
-      statement(
-        s"rpc ${rpc.name}($requestType) returns ($responseType)"
+      line(
+        s"rpc ${rpc.name} ($requestType) returns ($responseType) {}"
       )
     }
 

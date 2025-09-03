@@ -33,13 +33,13 @@ object RenderSpec extends ZIOSpecDefault {
 
 package test.package;
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 import "shared.proto";
 
 service ServiceWithShared {
-    rpc ProcessShared(RequestWithShared) returns (ResponseWithShared);
+    rpc ProcessShared (RequestWithShared) returns (ResponseWithShared) {}
 }
 
 message RequestWithShared {
@@ -65,8 +65,8 @@ message ResponseWithShared {
 
 package test.package;
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 import "priority.proto";
 
@@ -75,7 +75,7 @@ import "contact.proto";
 import "address.proto";
 
 service TestService {
-    rpc ProcessComplex(ComplexRequest) returns (ComplexResponse);
+    rpc ProcessComplex (ComplexRequest) returns (ComplexResponse) {}
 }
 
 message ComplexRequest {
@@ -119,11 +119,11 @@ message ComplexResponse {
 
 package test.package;
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 service MetadataService {
-    rpc ProcessWithMetadata(MetadataRequest) returns (MetadataResponse);
+    rpc ProcessWithMetadata (MetadataRequest) returns (MetadataResponse) {}
 }
 
 message MetadataRequest {
@@ -145,11 +145,11 @@ message MetadataResponse {
 
 package test.package;
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 service TestService {
-    rpc ProcessComplex(ComplexRequest) returns (ComplexResponse);
+    rpc ProcessComplex (ComplexRequest) returns (ComplexResponse) {}
 }
 
 message ComplexRequest {
@@ -231,13 +231,13 @@ message ComplexResponse {
 
 package test.package;
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 import "complex_types.proto";
 
 service TestService {
-    rpc ProcessComplex(ComplexRequest) returns (ComplexResponse);
+    rpc ProcessComplex (ComplexRequest) returns (ComplexResponse) {}
 }
 
 message ComplexRequest {
@@ -280,15 +280,15 @@ message ComplexResponse {
 
 package test.package;
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 import "stream_types.proto";
 
 service StreamingService {
-    rpc ClientStreaming(stream StreamRequest) returns (StreamResponse);
-    rpc ServerStreaming(StreamRequest) returns (stream StreamResponse);
-    rpc BidiStreaming(stream StreamRequest) returns (stream StreamResponse);
+    rpc ClientStreaming (stream StreamRequest) returns (StreamResponse) {}
+    rpc ServerStreaming (StreamRequest) returns (stream StreamResponse) {}
+    rpc BidiStreaming (stream StreamRequest) returns (stream StreamResponse) {}
 }
 """
 
@@ -303,15 +303,15 @@ service StreamingService {
         val serviceRendered = service.render(options, priorityDep, addressDep, unusedDep)
         val expected        = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 import "priority.proto";
 
 import "address.proto";
 
 service TestService {
-    rpc Test(ComplexRequest) returns (ComplexResponse);
+    rpc Test (ComplexRequest) returns (ComplexResponse) {}
 }
 
 message ComplexRequest {
@@ -376,13 +376,13 @@ message ComplexResponse {
         val serviceRendered = service.render(options, sharedDep, unusedDep)
         val expected        = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 import "shared.proto";
 
 service SimpleService {
-    rpc Process(RequestWithShared) returns (ResponseWithShared);
+    rpc Process (RequestWithShared) returns (ResponseWithShared) {}
 }
 
 message RequestWithShared {
@@ -407,8 +407,8 @@ message ResponseWithShared {
 
 package test.package;
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 message SharedMessage {
     string value = 1;
@@ -422,8 +422,8 @@ message SharedMessage {
         val rendered = enumDep.render(options)
         val expected = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 enum Priority {
     LOW = 0;
@@ -442,8 +442,8 @@ enum Priority {
         val rendered   = complexDep.render(options)
         val expected   = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 message Address {
     string street = 1;
@@ -489,8 +489,8 @@ message Slack {
         val rendered = mainDep.render(options)
         val expected = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 import "base.proto";
 
@@ -516,8 +516,8 @@ message RequestWithShared {
         val rendered = mainDep.render(options)
         val expected = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 import "priority.proto";
 
@@ -549,8 +549,8 @@ message ComplexRequest {
 
 package test.package;
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 """
 
@@ -564,8 +564,8 @@ option csharp_namespace = Test.Proto;
         val rendered = level3.render(options)
         val expected = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 import "level1.proto";
 
@@ -586,8 +586,8 @@ message ResponseWithShared {
         val rendered = multiTypeDep.render(options)
         val expected = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 message Address {
     string street = 1;
@@ -636,8 +636,8 @@ message Slack {
         val rendered   = dependency.render(options)
         val expected   = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 message Address {
     string street = 1;
@@ -686,8 +686,8 @@ message Slack {
         val rendered   = dependency.render(options)
         val expected   = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 """
 
@@ -706,8 +706,8 @@ option csharp_namespace = Test.Proto;
         val rendered   = dependency.render(options)
         val expected   = """syntax = "proto3";
 
-option java_package = com.test.proto;
-option csharp_namespace = Test.Proto;
+option java_package = "com.test.proto";
+option csharp_namespace = "Test.Proto";
 
 message Address {
     string street = 1;
