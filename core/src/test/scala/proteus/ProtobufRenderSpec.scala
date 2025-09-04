@@ -208,6 +208,7 @@ message MessageWithNested {
     message NestedData {
         string value = 1;
     }
+    
     int32 id = 1;
     NestedData data = 2;
 }

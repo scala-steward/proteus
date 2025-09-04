@@ -69,7 +69,7 @@ object Renderer {
         case MessageElement.FieldElement(field)           => renderField(field)
         case MessageElement.EnumDefElement(enumDef)       => renderEnum(enumDef)
         case MessageElement.OneofElement(oneof)           => renderOneof(oneof)
-        case MessageElement.NestedMessageElement(message) => renderMessage(message)
+        case MessageElement.NestedMessageElement(message) => many(renderMessage(message), emptyLine)
       }
 
     def renderReserved(reserved: List[Reserved]): Text = {
