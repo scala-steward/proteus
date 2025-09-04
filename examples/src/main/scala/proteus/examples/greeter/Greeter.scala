@@ -7,7 +7,7 @@ import proteus.*
 case class HelloRequest(name: String) derives Schema
 case class HelloReply(message: String) derives Schema
 
-given ProtobufDeriver = ProtobufDeriver()
+given ProtobufDeriver = ProtobufDeriver
 
 val sayHelloRpc = Rpc.unary[HelloRequest, HelloReply]("SayHello")
 

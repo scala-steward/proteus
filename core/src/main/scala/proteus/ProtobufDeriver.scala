@@ -480,9 +480,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
   private val unitSome   = TypeName.some(TypeName.unit)
 }
 
-object ProtobufDeriver {
-  def apply(): ProtobufDeriver = new ProtobufDeriver(Set.empty, Vector.empty)
-
+object ProtobufDeriver extends ProtobufDeriver(Set.empty, Vector.empty) {
   enum DerivationFlag {
     case OptionalAsOneOf
   }

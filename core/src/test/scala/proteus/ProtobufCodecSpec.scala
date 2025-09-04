@@ -37,7 +37,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
     extension (userId: UserId) def value: String = userId
   }
 
-  val deriver                    = ProtobufDeriver()
+  val deriver                    = ProtobufDeriver
   val deriverWithOptionalAsOneOf = deriver.enable(ProtobufDeriver.DerivationFlag.OptionalAsOneOf)
 
   val testDateTimeSchema: ProtobufCodec[OffsetDateTime] =
