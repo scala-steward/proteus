@@ -3,9 +3,11 @@ package proteus
 import java.nio.charset.StandardCharsets
 import java.nio.file.*
 
+import scala.collection.immutable.ListSet
+
 import zio.blocks.schema.Schema
 
-case class Dependency(packageName: Option[String], dependencyName: String, types: Set[ProtoIR.TopLevelDef], dependencies: List[Dependency]) {
+case class Dependency(packageName: Option[String], dependencyName: String, types: ListSet[ProtoIR.TopLevelDef], dependencies: List[Dependency]) {
   val typeReferences       = types.flatMap(_.collectTypeReferences).toSet
   val filteredDependencies = dependencies.filter(_.hasAnyOf(typeReferences))
 
@@ -49,8 +51,8 @@ case class Dependency(packageName: Option[String], dependencyName: String, types
 
 object Dependency {
   def apply(dependencyName: String): Dependency =
-    Dependency(None, dependencyName, Set.empty, Nil)
+    Dependency(None, dependencyName, ListSet.empty, Nil)
 
   def apply(packageName: String, dependencyName: String): Dependency =
-    Dependency(Some(packageName), dependencyName, Set.empty, Nil)
+    Dependency(Some(packageName), dependencyName, ListSet.empty, Nil)
 }

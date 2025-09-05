@@ -3,6 +3,8 @@ package proteus
 import java.nio.charset.StandardCharsets
 import java.nio.file.*
 
+import scala.collection.immutable.ListSet
+
 import com.google.protobuf.DescriptorProtos.*
 import com.google.protobuf.Descriptors.FileDescriptor
 
@@ -73,7 +75,7 @@ extension (dep: Dependency.type) {
     fromServices(None, dependencyName, services*)
 
   def fromServices(packageName: Option[String], dependencyName: String, services: Service[?]*): Dependency = {
-    val allTypes = services.flatMap(_.toProtoIR).toSet
+    val allTypes = ListSet.from(services.flatMap(_.toProtoIR))
 
     val requestResponseTypeNames =
       services.flatMap(_.rpcs.flatMap(rpc => List(rpc.toProtoIR.request.fqn.name, rpc.toProtoIR.response.fqn.name))).toSet
