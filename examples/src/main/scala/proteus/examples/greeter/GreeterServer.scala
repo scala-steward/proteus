@@ -2,18 +2,18 @@ package proteus.examples.greeter
 
 import java.util.concurrent.TimeUnit
 
-import io.grpc.{Server, ServerBuilder}
+import io.grpc.ServerBuilder
 
 import proteus.server.{DirectServerBackend, ServerService}
 
 class GreeterServer(port: Int) {
-  private def sayHello(request: HelloRequest): HelloReply = {
+  def sayHello(request: HelloRequest): HelloReply = {
     println(s"Server: SayHello(${request.name})")
     HelloReply(s"Hello, ${request.name}!")
   }
 
-  private val service        = ServerService(using DirectServerBackend).rpc(sayHelloRpc, sayHello).build(greeterService)
-  private val server: Server = ServerBuilder.forPort(port).addService(service).build()
+  val service = ServerService(using DirectServerBackend).rpc(sayHelloRpc, sayHello).build(greeterService)
+  val server  = ServerBuilder.forPort(port).addService(service).build()
 
   def start(): Unit = {
     server.start()

@@ -17,27 +17,26 @@ case class HelloReply(message: String) derives Schema
 
 val sayHelloRpc = Rpc.unary[HelloRequest, HelloReply]("SayHello")
 
-val greeterService = Service("examples.greeter", "Greeter")
-  .rpc(sayHelloRpc)
+val greeterService = Service("examples", "Greeter").rpc(sayHelloRpc)
 ```
 
 **Server** (`GreeterServer.scala`):
 ```scala
 class GreeterServer(port: Int) {
-  private val service = ServerService(using DirectServerBackend)
+  val service = ServerService(using DirectServerBackend)
     .rpc(sayHelloRpc, sayHello)
     .build(greeterService)
 
-  private val server = ServerBuilder.forPort(port).addService(service).build()
+  val server = ServerBuilder.forPort(port).addService(service).build()
 }
 ```
 
 **Client** (`GreeterClient.scala`):
 ```scala
 class GreeterClient(host: String, port: Int) {
-  private val channel: ManagedChannel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
-  private val backend                 = DirectClientBackend(channel)
-  private val sayHelloClient          = backend.client(greeterService, sayHelloRpc)
+  val channel: ManagedChannel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
+  val backend                 = DirectClientBackend(channel)
+  val sayHelloClient          = backend.client(greeterService, sayHelloRpc)
 }
 ```
 
@@ -46,7 +45,7 @@ class GreeterClient(host: String, port: Int) {
 ```protobuf
 syntax = "proto3";
 
-package examples.greeter;
+package examples;
 
 service Greeter {
     rpc SayHello(HelloRequest) returns (HelloReply);
