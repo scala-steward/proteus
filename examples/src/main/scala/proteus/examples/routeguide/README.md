@@ -1,14 +1,36 @@
 # Route Guide Example
 
-A comprehensive gRPC example demonstrating all four types of service methods using Proteus.
+A comprehensive gRPC example demonstrating all four types of service methods using Proteus with both ZIO and FS2 backends.
 
 ## Running
 
+**ZIO Version:**
 ```bash
-sbt "examples/runMain proteus.examples.routeguide.RouteGuideExample"
+sbt "examples/runMain proteus.examples.routeguide.zio.RouteGuideExample"
+```
+
+**FS2 Version:**
+```bash
+sbt "examples/runMain proteus.examples.routeguide.fs2.RouteGuideExample"
 ```
 
 ## Code Structure
+
+The example is structured with shared definitions at the root level and backend-specific implementations in subfolders:
+
+```
+routeguide/
+├── RouteGuide.scala      # Shared message definitions and service
+├── RouteGuideData.scala  # Shared sample data and utilities
+├── zio/                  # ZIO-based implementation
+│   ├── RouteGuideClient.scala
+│   ├── RouteGuideServer.scala
+│   └── RouteGuideExample.scala
+└── fs2/                  # FS2/Cats Effect implementation
+    ├── RouteGuideClient.scala
+    ├── RouteGuideServer.scala
+    └── RouteGuideExample.scala
+```
 
 **Messages & Service** (`RouteGuide.scala`):
 ```scala
@@ -30,7 +52,7 @@ val routeGuideService = Service("routeguide", "RouteGuide")
   .rpc(routeChatRpc)
 ```
 
-**Server** (`RouteGuideServer.scala`):
+**ZIO Server** (`zio/RouteGuideServer.scala`):
 ```scala
 class RouteGuideServer(port: Int, routeNotes: Ref[Map[Point, List[RouteNote]]]) {
   def getFeature(point: Point): UIO[Feature] = // Simple RPC
@@ -45,22 +67,30 @@ class RouteGuideServer(port: Int, routeNotes: Ref[Map[Point, List[RouteNote]]]) 
     .rpc(routeChatRpc, routeChat)
     .build(routeGuideService)
 
-  val server = ServerBuilder.forPort(port).addService(service).build()
+  val start: Task[Unit] = // ZIO-based server start
+  val stop: Task[Unit] = // ZIO-based server stop
 }
 ```
 
-**Client** (`RouteGuideClient.scala`):
+**FS2 Server** (`fs2/RouteGuideServer.scala`):
 ```scala
-class RouteGuideClient(host: String, port: Int) {
-  val channel: ManagedChannel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
-  val backend = new ZioClientBackend(ZChannel(channel, Seq.empty))
-  
-  def getFeature(point: Point): Task[Feature] = // Simple RPC call
-  def listFeatures(rectangle: Rectangle): Task[List[Feature]] = // Server streaming call  
-  def recordRoute(points: List[Point]): Task[RouteSummary] = // Client streaming call
-  def routeChat(): Task[List[RouteNote]] = // Bidirectional streaming call
+class RouteGuideServer(port: Int, routeNotes: Ref[IO, Map[Point, List[RouteNote]]]) {
+  def getFeature(point: Point): IO[Feature] = // Simple RPC
+  def listFeatures(rectangle: Rectangle): Stream[IO, Feature] = // Server streaming  
+  def recordRoute(points: Stream[IO, Point]): IO[RouteSummary] = // Client streaming
+  def routeChat(notes: Stream[IO, RouteNote]): Stream[IO, RouteNote] = // Bidirectional streaming
 
-  val runDemo: Task[Unit] = // ZIO-based demo runner
+  def createService(dispatcher: Dispatcher[IO]) = {
+    val backend = Fs2ServerBackend[IO](dispatcher)
+    ServerService(using backend)
+      .rpc(getFeatureRpc, getFeature)
+      .rpc(listFeaturesRpc, listFeatures) 
+      .rpc(recordRouteRpc, recordRoute)
+      .rpc(routeChatRpc, routeChat)
+      .build(routeGuideService)
+  }
+
+  val start: IO[Unit] = // Cats Effect-based server start
 }
 ```
 

@@ -111,7 +111,7 @@ lazy val examples = project
       ),
     generateProtos := (Compile / runMain).toTask(" proteus.examples.greeter.Protogen").value
   )
-  .dependsOn(zioGrpc)
+  .dependsOn(zioGrpc, fs2Grpc)
 
 lazy val commonSettings = Def.settings(
   scalacOptions ++= Seq(

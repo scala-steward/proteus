@@ -23,34 +23,33 @@ object RouteGuideData {
     val lat2 = toRadians(end.latitude)
     val lon1 = toRadians(start.longitude)
     val lon2 = toRadians(end.longitude)
-    
+
     val deltaLat = lat2 - lat1
     val deltaLon = lon2 - lon1
-    
+
     val a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-            Math.cos(lat1) * Math.cos(lat2) * 
-            Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2)
-    
-    val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+      Math.cos(lat1) * Math.cos(lat2) *
+      Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2)
+
+    val c           = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     val earthRadius = 6371000 // Earth radius in meters
-    
+
     (earthRadius * c).toInt
   }
 
-  def findFeature(point: Point): Feature = {
+  def findFeature(point: Point): Feature =
     features.find(_.location == point).getOrElse(Feature("", point))
-  }
 
   def findFeaturesInRectangle(rect: Rectangle): List[Feature] = {
-    val left = Math.min(rect.lo.longitude, rect.hi.longitude)
-    val right = Math.max(rect.lo.longitude, rect.hi.longitude)
-    val top = Math.max(rect.lo.latitude, rect.hi.latitude)
+    val left   = Math.min(rect.lo.longitude, rect.hi.longitude)
+    val right  = Math.max(rect.lo.longitude, rect.hi.longitude)
+    val top    = Math.max(rect.lo.latitude, rect.hi.latitude)
     val bottom = Math.min(rect.lo.latitude, rect.hi.latitude)
 
     features.filter { feature =>
       val point = feature.location
       point.longitude >= left && point.longitude <= right &&
-      point.latitude >= bottom && point.latitude <= top
+        point.latitude >= bottom && point.latitude <= top
     }
   }
 }

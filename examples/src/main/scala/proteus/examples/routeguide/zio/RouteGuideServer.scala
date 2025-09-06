@@ -1,4 +1,4 @@
-package proteus.examples.routeguide
+package proteus.examples.routeguide.zio
 
 import java.util.concurrent.TimeUnit
 
@@ -7,6 +7,7 @@ import io.grpc.StatusException
 import zio.*
 import zio.stream.*
 
+import proteus.examples.routeguide.*
 import proteus.server.{ServerService, ZioServerBackend}
 
 class RouteGuideServer(port: Int, routeNotes: Ref[Map[Point, List[RouteNote]]]) {

@@ -1,4 +1,4 @@
-package proteus.examples.routeguide
+package proteus.examples.routeguide.zio
 
 import java.util.concurrent.TimeUnit
 
@@ -8,6 +8,7 @@ import zio.*
 import zio.stream.*
 
 import proteus.client.ZioClientBackend
+import proteus.examples.routeguide.*
 
 class RouteGuideClient(host: String, port: Int) {
   val channel: ManagedChannel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
@@ -34,9 +35,10 @@ class RouteGuideClient(host: String, port: Int) {
 
   def routeChat(): Task[List[RouteNote]] = {
     val notes = List(
-      RouteNote(Point(0, 1), "Hello at (0,1)"),
-      RouteNote(Point(0, 2), "Hello at (0,2)"),
-      RouteNote(Point(1, 0), "Hello at (1,0)")
+      RouteNote(Point(0, 1), "First message at (0,1)"),
+      RouteNote(Point(0, 2), "Message at (0,2)"),
+      RouteNote(Point(0, 1), "Second message at (0,1)"),
+      RouteNote(Point(0, 1), "Third message at (0,1)")
     )
 
     for {

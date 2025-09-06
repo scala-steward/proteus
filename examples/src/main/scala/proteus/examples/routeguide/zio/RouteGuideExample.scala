@@ -1,8 +1,9 @@
-package proteus.examples.routeguide
+package proteus.examples.routeguide.zio
 
 import zio.*
 
 import proteus.*
+import proteus.examples.routeguide.*
 
 object RouteGuideExample extends ZIOAppDefault {
 
