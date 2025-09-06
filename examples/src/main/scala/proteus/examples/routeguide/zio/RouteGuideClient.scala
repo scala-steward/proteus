@@ -11,27 +11,43 @@ import proteus.client.ZioClientBackend
 import proteus.examples.routeguide.*
 
 class RouteGuideClient(host: String, port: Int) {
-  val channel: ManagedChannel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
-  val zChannel                = ZChannel(channel, Seq.empty)
-  val backend                 = new ZioClientBackend(zChannel)
+  val channelResource: ZIO[Scope, Throwable, ManagedChannel] =
+    ZIO.acquireRelease(
+      ZIO.attempt(ManagedChannelBuilder.forAddress(host, port).usePlaintext().build())
+    )(channel => ZIO.attemptBlocking(channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)).ignoreLogged)
 
   def getFeature(point: Point): Task[Feature] =
-    for {
-      client <- backend.client(routeGuideService, getFeatureRpc)
-      result <- client(point)
-    } yield result
+    ZIO.scoped {
+      for {
+        channel <- channelResource
+        zChannel = ZChannel(channel, Seq.empty)
+        backend  = new ZioClientBackend(zChannel)
+        client  <- backend.client(routeGuideService, getFeatureRpc)
+        result  <- client(point)
+      } yield result
+    }
 
   def listFeatures(rectangle: Rectangle): Task[List[Feature]] =
-    for {
-      client   <- backend.client(routeGuideService, listFeaturesRpc)
-      features <- client(rectangle).runCollect
-    } yield features.toList
+    ZIO.scoped {
+      for {
+        channel  <- channelResource
+        zChannel  = ZChannel(channel, Seq.empty)
+        backend   = new ZioClientBackend(zChannel)
+        client   <- backend.client(routeGuideService, listFeaturesRpc)
+        features <- client(rectangle).runCollect
+      } yield features.toList
+    }
 
   def recordRoute(points: List[Point]): Task[RouteSummary] =
-    for {
-      client <- backend.client(routeGuideService, recordRouteRpc)
-      result <- client(ZStream.fromIterable(points))
-    } yield result
+    ZIO.scoped {
+      for {
+        channel <- channelResource
+        zChannel = ZChannel(channel, Seq.empty)
+        backend  = new ZioClientBackend(zChannel)
+        client  <- backend.client(routeGuideService, recordRouteRpc)
+        result  <- client(ZStream.fromIterable(points))
+      } yield result
+    }
 
   def routeChat(): Task[List[RouteNote]] = {
     val notes = List(
@@ -41,10 +57,15 @@ class RouteGuideClient(host: String, port: Int) {
       RouteNote(Point(0, 1), "Third message at (0,1)")
     )
 
-    for {
-      client    <- backend.client(routeGuideService, routeChatRpc)
-      responses <- client(ZStream.fromIterable(notes)).runCollect
-    } yield responses.toList
+    ZIO.scoped {
+      for {
+        channel   <- channelResource
+        zChannel   = ZChannel(channel, Seq.empty)
+        backend    = new ZioClientBackend(zChannel)
+        client    <- backend.client(routeGuideService, routeChatRpc)
+        responses <- client(ZStream.fromIterable(notes)).runCollect
+      } yield responses.toList
+    }
   }
 
   val runDemo: Task[Unit] =
@@ -64,9 +85,4 @@ class RouteGuideClient(host: String, port: Int) {
       _         <- ZIO.log(s"Route chat: received ${responses.length} responses")
     } yield ()
 
-  val shutdown: Task[Unit] =
-    ZIO.attemptBlocking {
-      channel.shutdown()
-      channel.awaitTermination(5, TimeUnit.SECONDS): Unit
-    }
 }

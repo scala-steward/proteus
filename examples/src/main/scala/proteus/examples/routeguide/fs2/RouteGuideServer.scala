@@ -2,7 +2,7 @@ package proteus.examples.routeguide.fs2
 
 import java.util.concurrent.TimeUnit
 
-import cats.effect.{IO, Ref}
+import cats.effect.{IO, Ref, Resource}
 import cats.effect.std.Dispatcher
 import fs2.Stream
 import io.grpc.ServerBuilder
@@ -52,19 +52,12 @@ class RouteGuideServer(port: Int, routeNotes: Ref[IO, Map[Point, List[RouteNote]
     .rpc(routeChatRpc, routeChat)
     .build(routeGuideService)
 
-  val server = ServerBuilder.forPort(port).addService(service).build()
-
-  val start: IO[Unit] =
-    IO.delay {
-      server.start()
-      sys.addShutdownHook(unsafeStop())
-    } >> IO.println(s"Server started on port $port")
-
-  val stop: IO[Unit] =
-    IO.delay {
-      unsafeStop()
-    }
-
-  def unsafeStop(): Unit =
-    server.shutdown().awaitTermination(5, TimeUnit.SECONDS): Unit
+  val serverResource: Resource[IO, io.grpc.Server] =
+    Resource.make(
+      IO.delay {
+        val server = ServerBuilder.forPort(port).addService(service).build()
+        server.start()
+        server
+      } <* IO.println(s"Server started on port $port")
+    )(server => IO.blocking(server.shutdown().awaitTermination(5, TimeUnit.SECONDS): Unit))
 }

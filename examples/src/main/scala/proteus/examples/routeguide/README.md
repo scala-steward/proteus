@@ -136,3 +136,13 @@ message RouteNote {
 }
 ```
 
+## Features Demonstrated
+
+This example demonstrates all four gRPC service method types following the official Route Guide algorithm:
+
+1. **Simple RPC** (`GetFeature`): Client sends a single point, server returns corresponding feature
+2. **Server-side streaming** (`ListFeatures`): Client sends a rectangle, server streams back all features within bounds  
+3. **Client-side streaming** (`RecordRoute`): Client streams points, server returns route summary with distance and timing
+4. **Bidirectional streaming** (`RouteChat`): Client and server exchange route notes, with server returning existing notes at each location
+
+The demo includes multiple messages to the same location in `routeChat` to demonstrate the bidirectional streaming pattern where later messages receive previously stored notes as responses.

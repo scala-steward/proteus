@@ -17,11 +17,10 @@ object RouteGuideExample extends IOApp.Simple {
         server = RouteGuideServer(8981, routeNotes)
         client = RouteGuideClient("localhost", 8981)
 
-        _ <- server.start
-        _ <- IO.println("Running Route Guide demo...")
-        _ <- client.runDemo
-        _ <- client.shutdown
-        _ <- server.stop
+        _ <- server.serverResource.use { _ =>
+               IO.println("Running Route Guide demo...") >>
+                 client.runDemo
+             }
       } yield ()
     }
 }

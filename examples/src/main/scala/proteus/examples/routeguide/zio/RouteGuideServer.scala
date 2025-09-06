@@ -48,19 +48,12 @@ class RouteGuideServer(port: Int, routeNotes: Ref[Map[Point, List[RouteNote]]]) 
     .rpc(routeChatRpc, routeChat)
     .build(routeGuideService)
 
-  val server = ServerBuilder.forPort(port).addService(service).build()
-
-  val start: Task[Unit] =
-    ZIO.attempt {
-      server.start()
-      sys.addShutdownHook(unsafeStop())
-    } *> ZIO.log(s"Server started on port $port")
-
-  val stop: Task[Unit] =
-    ZIO.attemptBlocking {
-      unsafeStop()
-    }
-
-  private def unsafeStop(): Unit =
-    server.shutdown().awaitTermination(5, TimeUnit.SECONDS): Unit
+  val serverResource: ZIO[Scope, Throwable, io.grpc.Server] =
+    ZIO.acquireRelease(
+      ZIO.attempt {
+        val server = ServerBuilder.forPort(port).addService(service).build()
+        server.start()
+        server
+      } <* ZIO.log(s"Server started on port $port")
+    )(server => ZIO.attemptBlocking(server.shutdown().awaitTermination(5, TimeUnit.SECONDS)).ignoreLogged)
 }
