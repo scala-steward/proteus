@@ -577,11 +577,11 @@ message ResponseWithShared {
 
         assertTrue(rendered == expected)
       },
-      test("should sort types alphabetically in rendered output") {
+      test("should sort types by order of declaration, then top-down in rendered output") {
         val multiTypeDep = Dependency("multi.proto")
-          .add[Priority] // Enum
-          .add[Address] // Message starting with A
-          .add[ContactMethod] // Message starting with C
+          .add[Priority]
+          .add[ContactMethod]
+          .add[Address]
 
         val rendered = multiTypeDep.render(options)
         val expected = """syntax = "proto3";
@@ -594,13 +594,6 @@ enum Priority {
     MEDIUM = 1;
     HIGH = 2;
     CRITICAL = 3;
-}
-
-message Address {
-    string street = 1;
-    string city = 2;
-    string country = 3;
-    int32 zip_code = 4;
 }
 
 message ContactMethod {
@@ -623,6 +616,13 @@ message Phone {
 message Slack {
     string workspace = 1;
     string channel = 2;
+}
+
+message Address {
+    string street = 1;
+    string city = 2;
+    string country = 3;
+    int32 zip_code = 4;
 }
 """
 
