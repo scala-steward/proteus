@@ -389,17 +389,11 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
       },
       test("message with transformed List of messages") {
         case class MyList[A](items: List[A]) derives Schema
-        given [A: Schema]: Schema[MyList[A]] =
-          Schema(
-            Reflect.Wrapper(
-              Schema.list[A].reflect,
-              TypeName(Namespace("com" :: "devsisters" :: "ck" :: "entities" :: Nil, Nil), "MyList"),
-              Binding.Wrapper[MyList[A], List[A]](list => Right(MyList(list)), _.items)
-            )
-          )
+        given [A: Schema]: Schema[MyList[A]] = Schema[MyList[A]].wrapTotal(MyList[A](_), _.items)
+
         case class Item(name: String, value: Int) derives Schema
         case class Container(items: MyList[Item]) derives Schema
-        val containerCodec                   = Schema[Container].derive(deriver)
+        val containerCodec = Schema[Container].derive(deriver)
 
         val original = Container(MyList(List(Item("a", 1), Item("b", 2), Item("c", 3))))
         val encoded  = containerCodec.encode(original)
