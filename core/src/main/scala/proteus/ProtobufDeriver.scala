@@ -22,8 +22,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
   val oneofModifier   = Modifier.config("proteus.oneof", "true")
   val excludeModifier = Modifier.config("proteus.exclude", "true")
 
-  def instance[B](typeName: TypeName[B], instance: => ProtobufCodec[B]): ProtobufDeriver =
-    copy(instances = instances :+ InstanceOverride(By.Type(typeName), Lazy(instance)))
+  def instance[B: Schema](instance: => ProtobufCodec[B]): ProtobufDeriver =
+    copy(instances = instances :+ InstanceOverride(By.Type(Schema[B].reflect.typeName), Lazy(instance)))
 
   def enable(flag: DerivationFlag): ProtobufDeriver =
     copy(flags = flags + flag)

@@ -62,7 +62,7 @@ class ProtobufCodecBenchmark {
 
   case class Time(currentTimeMillis: Long) derives Schema
 
-  val deriver = ProtobufDeriver.instance(TypeName.offsetDateTime, dateTimeCodec)
+  val deriver = ProtobufDeriver.instance(dateTimeCodec)
 
   val dateTimeCodec: ProtobufCodec[DateTime] =
     Schema[Time]
