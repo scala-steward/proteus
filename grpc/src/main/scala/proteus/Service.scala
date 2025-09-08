@@ -8,7 +8,7 @@ import scala.collection.immutable.ListSet
 import com.google.protobuf.DescriptorProtos.*
 import com.google.protobuf.Descriptors.FileDescriptor
 
-case class Service[Rpcs] private (packageName: Option[String], name: String, rpcs: List[Rpc[?, ?]]) {
+case class Service[Rpcs] private (packageName: Option[String], name: String, rpcs: List[Rpc[?, ?]], dependencies: List[Dependency]) {
   val fullyQualifiedName: String = packageName.fold(name)(s => s"$s.$name")
 
   val toProtoIR: List[ProtoIR.TopLevelDef] =
@@ -36,9 +36,12 @@ case class Service[Rpcs] private (packageName: Option[String], name: String, rpc
   }
 
   def rpc[Request, Response](rpc: Rpc[Request, Response]): Service[Rpcs & rpc.type] =
-    Service(packageName, name, rpcs :+ rpc)
+    Service(packageName, name, rpcs :+ rpc, dependencies)
 
-  def render(options: List[ProtoIR.TopLevelOption], dependencies: Dependency*): String = {
+  def dependsOn(dependency: Dependency): Service[Rpcs] =
+    copy(dependencies = dependencies :+ dependency)
+
+  def render(options: List[ProtoIR.TopLevelOption]): String = {
     val filteredDependencies = dependencies.filter(_.hasAnyOf(typeReferences))
     val dependencyTypes      = filteredDependencies.flatMap(_.types).map(_.name).toSet
     val filteredDefinitions  = toProtoIR.filterNot(d => dependencyTypes.contains(d.name))
@@ -52,23 +55,23 @@ case class Service[Rpcs] private (packageName: Option[String], name: String, rpc
     )
   }
 
-  def renderToFile(options: List[ProtoIR.TopLevelOption], folder: String, fileName: String, dependencies: Dependency*): Unit = {
-    val rendered = render(options, dependencies*)
+  def renderToFile(options: List[ProtoIR.TopLevelOption], folder: String, fileName: String): Unit = {
+    val rendered = render(options)
     val path     = Path.of(folder, fileName)
     Files.createDirectories(path.getParent)
     Files.write(path, rendered.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING): Unit
   }
 
-  def renderToFile(options: List[ProtoIR.TopLevelOption], folder: String, dependencies: Dependency*): Unit =
-    renderToFile(options, folder, internal.toSnakeCase(name), dependencies*)
+  def renderToFile(options: List[ProtoIR.TopLevelOption], folder: String): Unit =
+    renderToFile(options, folder, internal.toSnakeCase(name))
 }
 
 object Service {
   def apply(name: String): Service[Any] =
-    Service(None, name, List.empty)
+    Service(None, name, List.empty, Nil)
 
   def apply(packageName: String, name: String): Service[Any] =
-    Service(Some(packageName), name, List.empty)
+    Service(Some(packageName), name, List.empty, Nil)
 }
 
 extension (dep: Dependency.type) {

@@ -28,7 +28,7 @@ object RenderSpec extends ZIOSpecDefault {
   def spec = suite("RenderSpec")(
     suite("Service Rendering")(
       test("should only include used dependencies in rendered proto") {
-        val renderedProto = serviceWithShared.render(options, sharedDep, unusedDep)
+        val renderedProto = serviceWithShared.dependsOn(sharedDep).dependsOn(unusedDep).render(options)
         val expected      = """syntax = "proto3";
 
 package test.package;
@@ -60,7 +60,7 @@ message ResponseWithShared {
         val contactDep  = Dependency("contact").add[ContactMethod]
         val addressDep  = Dependency("address").add[Address]
 
-        val renderedProto = testService.render(options, priorityDep, contactDep, addressDep)
+        val renderedProto = testService.dependsOn(priorityDep).dependsOn(contactDep).dependsOn(addressDep).render(options)
         val expected      = """syntax = "proto3";
 
 package test.package;
@@ -114,7 +114,7 @@ message ComplexResponse {
         val unusedDep1 = Dependency("unused1").add[UnusedMessage]
         val unusedDep2 = Dependency("unused2").add[SharedMessage]
 
-        val renderedProto = metadataService.render(options, unusedDep1, unusedDep2)
+        val renderedProto = metadataService.dependsOn(unusedDep1).dependsOn(unusedDep2).render(options)
         val expected      = """syntax = "proto3";
 
 package test.package;
@@ -226,7 +226,7 @@ message ComplexResponse {
           .add[ContactMethod]
           .add[Address]
 
-        val renderedProto = testService.render(options, complexDep)
+        val renderedProto = testService.dependsOn(complexDep).render(options)
         val expected      = """syntax = "proto3";
 
 package test.package;
@@ -275,7 +275,7 @@ message ComplexResponse {
       test("should handle streaming services with type dependencies") {
         val streamDep = Dependency("stream_types").add[StreamRequest].add[StreamResponse]
 
-        val renderedProto = streamingService.render(options, streamDep)
+        val renderedProto = streamingService.dependsOn(streamDep).render(options)
         val expected      = """syntax = "proto3";
 
 package test.package;
@@ -300,7 +300,7 @@ service StreamingService {
         val unusedDep   = Dependency("unused").add[UnusedMessage]
 
         val service         = Service("TestService").rpc(Rpc.unary[ComplexRequest, ComplexResponse]("Test"))
-        val serviceRendered = service.render(options, priorityDep, addressDep, unusedDep)
+        val serviceRendered = service.dependsOn(priorityDep).dependsOn(addressDep).dependsOn(unusedDep).render(options)
         val expected        = """syntax = "proto3";
 
 option java_package = "com.test";
@@ -373,7 +373,7 @@ message ComplexResponse {
         val unusedDep = Dependency("unused").add[UnusedMessage]
 
         val service         = Service("SimpleService").rpc(Rpc.unary[RequestWithShared, ResponseWithShared]("Process"))
-        val serviceRendered = service.render(options, sharedDep, unusedDep)
+        val serviceRendered = service.dependsOn(sharedDep).dependsOn(unusedDep).render(options)
         val expected        = """syntax = "proto3";
 
 option java_package = "com.test";
