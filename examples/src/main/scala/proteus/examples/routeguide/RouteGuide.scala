@@ -1,6 +1,6 @@
 package proteus.examples.routeguide
 
-import zio.blocks.schema.Schema
+import _root_.zio.blocks.schema.Schema
 
 import proteus.*
 
