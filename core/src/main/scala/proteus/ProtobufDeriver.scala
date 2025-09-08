@@ -85,7 +85,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
               val name     = toSnakeCase(field.term.name)
               val register = registers(index)
               field.instance match {
-                case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneofField[inner]), _, _, _, _, true, _)) =>
+                case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneofField[inner]), _, _, _, _, true, _, _)) =>
                   val idIterator = getReservedIndexes(field.term.modifiers).iterator
                   builder += OneofField(
                     name,
@@ -108,7 +108,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                       def discriminate(a: A): Int = o.discriminator.discriminate(to(a).asInstanceOf[inner])
                     }
                   )
-                case ProtobufCodec.Message(_, Array(o: OneofField[?]), _, _, _, _, true, _)                                            =>
+                case ProtobufCodec.Message(_, Array(o: OneofField[?]), _, _, _, _, true, _, _)                                            =>
                   val idIterator = getReservedIndexes(field.term.modifiers).iterator
                   builder += OneofField(
                     name,
@@ -125,7 +125,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                     register,
                     o.discriminator
                   )
-                case ProtobufCodec.Optional(codec) if flags.contains(DerivationFlag.OptionalAsOneOf)                                   =>
+                case ProtobufCodec.Optional(codec) if flags.contains(DerivationFlag.OptionalAsOneOf)                                      =>
                   id += 1
                   while (allReservedIndexes.contains(id)) id += 1
                   val emptyId = id
@@ -135,8 +135,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                   builder += OneofField(
                     toSnakeCase(field.term.name),
                     Array(
-                      SimpleField(s"no_$name", emptyId, Empty.emptyCodec.transform(_ => None, _ => Empty()), register, null),
-                      SimpleField(s"${name}_value", valueId, codec.transform(Some(_), _.get), register, null)
+                      SimpleField(s"no_$name", emptyId, Empty.emptyCodec.transform(_ => None, _ => Empty()), register, null, None),
+                      SimpleField(s"${name}_value", valueId, codec.transform(Some(_), _.get), register, null, getComment(field.term.modifiers))
                     ),
                     register,
                     new Discriminator[A] {
@@ -146,10 +146,10 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                       }
                     }
                   )
-                case instance                                                                                                          =>
+                case instance                                                                                                             =>
                   id += 1
                   while (allReservedIndexes.contains(id)) id += 1
-                  builder += SimpleField(name, id, instance, register, getDefaultValue(using field.instance))
+                  builder += SimpleField(name, id, instance, register, getDefaultValue(using field.instance), getComment(field.term.modifiers))
               }
             }
 
@@ -167,7 +167,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
             offset,
             reservedIndexes,
             inline = false,
-            nested = nested
+            nested = nested,
+            comment = getComment(modifiers)
           )
 
           visited.remove(typeName)
@@ -200,7 +201,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         builder += ProtobufCodec.EnumValue(enumName, index, a)
         index += 1
       }
-      Lazy(ProtobufCodec.Enum(getTypeName(typeName, modifiers), builder.result(), reservedIndexes))
+      Lazy(ProtobufCodec.Enum(getTypeName(typeName, modifiers), builder.result(), reservedIndexes, getComment(modifiers)))
     } else {
       val inline        = modifiers.collectFirst { case `inlineModifier` => true }.getOrElse(false)
       val nested        = modifiers.collectFirst { case `nestedModifier` => true }.getOrElse(false)
@@ -214,7 +215,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
           "value",
           casesWithInstances.zipWithIndex.map { case (c, index) =>
             while (reservedIndexes.contains(id)) id += 1
-            val item = SimpleField(toSnakeCase(c.term.name), id, c.instance, register.asInstanceOf[Register[Any]], null)
+            val item = SimpleField(toSnakeCase(c.term.name), id, c.instance, register.asInstanceOf[Register[Any]], null, getComment(c.term.modifiers))
             id += 1
             item
           }.toArray,
@@ -235,7 +236,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
           register.usedRegisters,
           reservedIndexes,
           inline = inline,
-          nested = nested
+          nested = nested,
+          comment = getComment(modifiers)
         )
       }
     }
@@ -298,15 +300,16 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
             ProtobufCodec.Message(
               "",
               Array(
-                SimpleField("key", 1, keyInstance, keyRegister, getDefaultValue(using keyInstance)),
-                SimpleField("value", 2, valueInstance, valueRegister, getDefaultValue(using valueInstance))
+                SimpleField("key", 1, keyInstance, keyRegister, getDefaultValue(using keyInstance), None),
+                SimpleField("value", 2, valueInstance, valueRegister, getDefaultValue(using valueInstance), None)
               ),
               constructor,
               deconstructor,
               offset,
               Set.empty,
               inline = false,
-              nested = false
+              nested = false,
+              comment = None
             ),
             mapBinding.constructor,
             mapBinding.deconstructor
@@ -317,15 +320,16 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
               ProtobufCodec.Message(
                 s"${key.typeName.name}${value.typeName.name}Entry",
                 Array(
-                  SimpleField("key", 1, keyInstance, keyRegister, getDefaultValue(using keyInstance)),
-                  SimpleField("value", 2, valueInstance, valueRegister, getDefaultValue(using valueInstance))
+                  SimpleField("key", 1, keyInstance, keyRegister, getDefaultValue(using keyInstance), None),
+                  SimpleField("value", 2, valueInstance, valueRegister, getDefaultValue(using valueInstance), None)
                 ),
                 constructor,
                 deconstructor,
                 offset,
                 Set.empty,
                 inline = false,
-                nested = false
+                nested = false,
+                comment = None
               ),
               SeqConstructor.listConstructor,
               SeqDeconstructor.listDeconstructor,
@@ -411,6 +415,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
       .collectFirst { case Modifier.config("proteus.enum.prefix", prefix) => prefix }
       .getOrElse("")
 
+  private def getComment(modifiers: Seq[Modifier]): Option[String] =
+    modifiers.collectFirst { case Modifier.config("proteus.comment", value) => value }
+
   private def isEnum(cases: IndexedSeq[Term[?, ?, ?]], modifiers: Seq[Modifier]): Boolean =
     cases.forall(c =>
       innerSchema(c.value) match {
@@ -427,7 +434,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
 
   private def getDefaultValue[A](using codec: ProtobufCodec[A]): A =
     codec match {
-      case ProtobufCodec.Primitive(primitiveType)                       =>
+      case ProtobufCodec.Primitive(primitiveType)                          =>
         primitiveType match {
           case _: PrimitiveType.Boolean => false
           case _: PrimitiveType.Float   => 0.0f
@@ -437,7 +444,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
           case _: PrimitiveType.String  => ""
           case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
         }
-      case ProtobufCodec.Message(_, fields, constructor, _, _, _, _, _) =>
+      case ProtobufCodec.Message(_, fields, constructor, _, _, _, _, _, _) =>
         boundary {
           val registers = Registers(constructor.usedRegisters)
           fields.foreach {
@@ -449,19 +456,19 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
           }
           constructor.construct(registers, RegisterOffset.Zero)
         }
-      case ProtobufCodec.Optional(_)                                    =>
+      case ProtobufCodec.Optional(_)                                       =>
         None.asInstanceOf[A]
-      case c: ProtobufCodec.Enum[A]                                     =>
+      case c: ProtobufCodec.Enum[A]                                        =>
         c.valuesByIndex.getOrElse(0, null.asInstanceOf[A])
-      case ProtobufCodec.RepeatedMap(_, constructor, _)                 =>
+      case ProtobufCodec.RepeatedMap(_, constructor, _)                    =>
         constructor.resultObject(constructor.newObjectBuilder()).asInstanceOf[A]
-      case ProtobufCodec.Repeated(_, constructor, _, _)                 =>
+      case ProtobufCodec.Repeated(_, constructor, _, _)                    =>
         constructor.resultObject(constructor.newObjectBuilder()).asInstanceOf[A]
-      case ProtobufCodec.Transform(from, _, codec)                      =>
+      case ProtobufCodec.Transform(from, _, codec)                         =>
         from(getDefaultValue(using codec))
-      case c: ProtobufCodec.RecursiveMessage[A]                         =>
+      case c: ProtobufCodec.RecursiveMessage[A]                            =>
         getDefaultValue(using c.codec)
-      case ProtobufCodec.Bytes                                          =>
+      case ProtobufCodec.Bytes                                             =>
         Array.empty[Byte]
     }
 

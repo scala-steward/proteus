@@ -32,7 +32,7 @@ object ProtoIR {
     }
   }
 
-  final case class Message(name: String, elements: List[MessageElement], reserved: List[Reserved]) {
+  final case class Message(name: String, elements: List[MessageElement], reserved: List[Reserved], comment: Option[String] = None) {
     lazy val collectTypeReferences: Set[String] = elements.toSet.flatMap(_.collectTypeReferences)
   }
 
@@ -56,7 +56,7 @@ object ProtoIR {
 
   final case class Oneof(name: String, fields: List[Field])
 
-  final case class Field(ty: Type, name: String, number: Int, deprecated: Boolean = false, optional: Boolean = false)
+  final case class Field(ty: Type, name: String, number: Int, deprecated: Boolean = false, optional: Boolean = false, comment: Option[String] = None)
 
   sealed trait Reserved
   object Reserved {
@@ -66,7 +66,7 @@ object ProtoIR {
   }
 
   case class EnumValue(name: String, intValue: Int)
-  case class Enum(name: String, values: List[EnumValue], reserved: List[Reserved])
+  case class Enum(name: String, values: List[EnumValue], reserved: List[Reserved], comment: Option[String] = None)
 
   final case class Service(name: String, rpcs: List[Rpc])
 

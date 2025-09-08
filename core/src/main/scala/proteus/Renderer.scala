@@ -32,27 +32,39 @@ object Renderer {
       }
 
     def renderEnum(enumeration: Enum): Text = {
-      val hasContent = enumeration.reserved.nonEmpty || enumeration.values.nonEmpty
+      val hasContent  = enumeration.reserved.nonEmpty || enumeration.values.nonEmpty
+      val commentLine = enumeration.comment.map(c => line(s"// $c")).getOrElse(many())
       if (hasContent) {
         many(
+          commentLine,
           line(s"enum ${enumeration.name} {"),
           indent(renderReserved(enumeration.reserved)),
           indent(enumeration.values.map(renderEnumElement)),
           line("}")
         )
-      } else line(s"enum ${enumeration.name} {}")
+      } else
+        many(
+          commentLine,
+          line(s"enum ${enumeration.name} {}")
+        )
     }
 
     def renderMessage(message: Message): Text = {
-      val hasContent = message.reserved.nonEmpty || message.elements.nonEmpty
+      val hasContent  = message.reserved.nonEmpty || message.elements.nonEmpty
+      val commentLine = message.comment.map(c => line(s"// $c")).getOrElse(many())
       if (hasContent) {
         many(
+          commentLine,
           line(s"message ${message.name} {"),
           indent(renderReserved(message.reserved)),
           indent(message.elements.map(renderMessageElement)),
           line("}")
         )
-      } else line(s"message ${message.name} {}")
+      } else
+        many(
+          commentLine,
+          line(s"message ${message.name} {}")
+        )
     }
 
     def renderOneof(oneof: Oneof): Text =
@@ -103,8 +115,8 @@ object Renderer {
         case _: Type.ListType | _: Type.MapType                            =>
           ""
       }
-      // TODO support marker for required fields
-      statement(s"$optional$ty ${field.name} = ${field.number}$deprecated")
+      val comment    = field.comment.map(c => s" // $c").getOrElse("")
+      line(s"$optional$ty ${field.name} = ${field.number}$deprecated;$comment")
     }
 
     def renderService(service: Service): Text = {

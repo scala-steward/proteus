@@ -511,6 +511,96 @@ message Slack {
 """
 
         assertTrue(rendered == expected)
+      },
+      test("proteus.comment modifier renders field comments") {
+        case class MessageWithComments(
+          @config("proteus.comment", "User identifier")
+          id: Int,
+          @config("proteus.comment", "User's display name")
+          name: String,
+          email: String
+        ) derives Schema
+
+        val codec    = Schema[MessageWithComments].derive(deriver)
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message MessageWithComments {
+    int32 id = 1; // User identifier
+    string name = 2; // User's display name
+    string email = 3;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
+      test("proteus.comment modifier renders type-level comments") {
+        @config("proteus.comment", "User profile information")
+        case class UserProfile(
+          id: Int,
+          name: String
+        ) derives Schema
+
+        @config("proteus.comment", "Status levels for users")
+        enum UserStatus derives Schema {
+          case Active, Inactive, Suspended
+        }
+        case class MessageWithEnums(profile: UserProfile, status: UserStatus) derives Schema
+
+        val codec    = Schema[MessageWithEnums].derive(deriver)
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message MessageWithEnums {
+    UserProfile profile = 1;
+    UserStatus status = 2;
+}
+
+// User profile information
+message UserProfile {
+    int32 id = 1;
+    string name = 2;
+}
+
+// Status levels for users
+enum UserStatus {
+    ACTIVE = 0;
+    INACTIVE = 1;
+    SUSPENDED = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
+      test("proteus.comment modifier renders both type-level and field-level comments") {
+        @config("proteus.comment", "Complete user information")
+        case class FullUser(
+          @config("proteus.comment", "Unique user identifier")
+          id: Int,
+          @config("proteus.comment", "Display name")
+          name: String,
+          email: String
+        ) derives Schema
+
+        val codec    = Schema[FullUser].derive(deriver)
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+// Complete user information
+message FullUser {
+    int32 id = 1; // Unique user identifier
+    string name = 2; // Display name
+    string email = 3;
+}
+"""
+
+        assertTrue(rendered == expected)
       }
     ),
     suite("Derivation Flags")(

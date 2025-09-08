@@ -68,15 +68,21 @@ object ProtobufCodec {
   }
 
   object MessageField {
-    final case class SimpleField[A](name: String, id: Int, codec: ProtobufCodec[A], register: Register[Any], defaultValue: Any)
-      extends MessageField[A] {
+    final case class SimpleField[A](
+      name: String,
+      id: Int,
+      codec: ProtobufCodec[A],
+      register: Register[Any],
+      defaultValue: Any,
+      comment: Option[String] = None
+    ) extends MessageField[A] {
       def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
         val res = getFromRegister(registers, offset, register).asInstanceOf[A]
         ProtobufCodec.toProtoWriter(codec, res, id, registers, nextOffset, alwaysEncode = false)
       }
 
       def toProtoIR: ProtoIR.MessageElement.FieldElement = {
-        val field = ProtoIR.Field(toProtoType(codec), name, id, deprecated = false, optional = isOptional(using codec))
+        val field = ProtoIR.Field(toProtoType(codec), name, id, deprecated = false, optional = isOptional(using codec), comment = comment)
         ProtoIR.MessageElement.FieldElement(field)
       }
 
@@ -137,7 +143,7 @@ object ProtobufCodec {
 
   case class EnumValue[A](name: String, index: Int, value: A)
 
-  final case class Enum[A](name: String, values: List[EnumValue[A]], reserved: List[Int]) extends ProtobufCodec[A] {
+  final case class Enum[A](name: String, values: List[EnumValue[A]], reserved: List[Int], comment: Option[String] = None) extends ProtobufCodec[A] {
     val valuesByIndex: HashMap[Int, A]  = HashMap.from(values.map(v => (v.index, v.value)))
     val indexesByValue: HashMap[A, Int] = HashMap.from(values.map(v => (v.value, v.index)))
 
@@ -150,7 +156,8 @@ object ProtobufCodec {
       ProtoIR.Enum(
         name,
         values.map(v => ProtoIR.EnumValue(v.name, v.index)).toList,
-        reserved = reserved.toList.sorted.map(ProtoIR.Reserved.Number(_))
+        reserved = reserved.toList.sorted.map(ProtoIR.Reserved.Number(_)),
+        comment = comment
       )
   }
 
@@ -162,7 +169,8 @@ object ProtobufCodec {
     usedRegisters: RegisterOffset,
     reserved: Set[Int],
     inline: Boolean,
-    nested: Boolean
+    nested: Boolean,
+    comment: Option[String] = None
   ) extends ProtobufCodec[A] {
     val simpleFields: List[SimpleField[?]] = fields.toList.flatMap {
       case f: SimpleField[?] => List(f)
@@ -207,7 +215,12 @@ object ProtobufCodec {
         case c: ProtoIR.MessageElement.OneofElement => c.oneof.fields.head.number
         case e: ProtoIR.MessageElement.FieldElement => e.field.number
       }
-      ProtoIR.Message(name, nestedMessageElements ++ sortedAllElements, reserved = reserved.toList.sorted.map(ProtoIR.Reserved.Number(_)))
+      ProtoIR.Message(
+        name,
+        nestedMessageElements ++ sortedAllElements,
+        reserved = reserved.toList.sorted.map(ProtoIR.Reserved.Number(_)),
+        comment = comment
+      )
     }
   }
 
