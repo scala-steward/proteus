@@ -19,7 +19,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
 
   private val oneOfModifier      = "proteus.oneof"
   private val nestedModifier     = "proteus.nested"
-  private val excludeModifier    = "proteus.exclude"
+  private val excludedModifier   = "proteus.excluded"
   private val reservedModifier   = "proteus.reserved"
   private val renameModifier     = "proteus.rename"
   private val enumPrefixModifier = "proteus.enum.prefix"
@@ -84,7 +84,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
           var id                   = 0
 
           def getField[A](index: Int, field: TermInstance[F, A]): Unit =
-            if (!field.term.modifiers.exists { case Modifier.config(`excludeModifier`, _) => true; case _ => false }) {
+            if (!field.term.modifiers.exists { case Modifier.config(`excludedModifier`, _) => true; case _ => false }) {
               val name     = toSnakeCase(field.term.name)
               val register = registers(index)
               field.instance match {
@@ -189,8 +189,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     modifiers: Seq[Modifier.Variant]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[A]] = {
     val filteredCases = cases.filterNot(c =>
-      c.modifiers.exists { case Modifier.config(`excludeModifier`, _) => true; case _ => false } ||
-        c.value.modifiers.exists { case Modifier.config(`excludeModifier`, _) => true; case _ => false }
+      c.modifiers.exists { case Modifier.config(`excludedModifier`, _) => true; case _ => false } ||
+        c.value.modifiers.exists { case Modifier.config(`excludedModifier`, _) => true; case _ => false }
     )
     if (typeName.name == unitOption.name && typeName.namespace == unitOption.namespace)
       D.instance(filteredCases.find(c => c.name == unitSome.name).get.value.asRecord.get.fields.head.value.metadata)

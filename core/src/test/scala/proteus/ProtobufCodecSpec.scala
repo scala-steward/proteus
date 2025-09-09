@@ -568,11 +568,11 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
         assert(decoded)(equalTo(original))
       },
-      test("proteus.exclude modifier skips field from codec") {
+      test("proteus.excluded modifier skips field from codec") {
         case class MessageWithExcluded(
           id: Int,
           name: String,
-          @config("proteus.exclude", "true") excluded: String
+          @config("proteus.excluded", "true") excluded: String
         ) derives Schema
         case class MessageWithoutExcluded(
           id: Int,
@@ -593,10 +593,10 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
           // And the encoded bytes should be identical
           assert(encodedWithExcluded)(equalTo(encodedWithoutExcluded))
       },
-      test("proteus.exclude modifier excludes enum cases from codec") {
+      test("proteus.excluded modifier excludes enum cases from codec") {
         enum StatusWithExcluded derives Schema    {
           case Active
-          @config("proteus.exclude", "true") case Inactive
+          @config("proteus.excluded", "true") case Inactive
           case Pending
         }
         enum StatusWithoutExcluded derives Schema {
@@ -619,10 +619,10 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         // The encoded messages should be identical since excluded enum case is not present
         assert(encodedWithExcluded)(equalTo(encodedWithoutExcluded))
       },
-      test("proteus.exclude modifier excludes variant cases from codec") {
+      test("proteus.excluded modifier excludes variant cases from codec") {
         enum ContactWithExcluded derives Schema    {
           case Email(address: String)
-          @config("proteus.exclude", "true") case Phone(number: String)
+          @config("proteus.excluded", "true") case Phone(number: String)
           case Slack(workspace: String)
         }
         enum ContactWithoutExcluded derives Schema {

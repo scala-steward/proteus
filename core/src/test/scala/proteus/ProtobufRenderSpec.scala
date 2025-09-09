@@ -540,11 +540,11 @@ enum Priority {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.exclude modifier excludes field from rendered proto") {
+      test("proteus.excluded modifier excludes field from rendered proto") {
         case class MessageWithExcluded(
           id: Int,
           name: String,
-          @config("proteus.exclude", "true") excluded: String
+          @config("proteus.excluded", "true") excluded: String
         ) derives Schema
         val codec    = Schema[MessageWithExcluded].derive(deriver)
         val rendered = renderCodec(codec)
@@ -560,10 +560,10 @@ message MessageWithExcluded {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.exclude modifier excludes enum cases from rendered proto") {
+      test("proteus.excluded modifier excludes enum cases from rendered proto") {
         enum StatusWithExcluded derives Schema {
           case Active
-          @config("proteus.exclude", "true") case Inactive
+          @config("proteus.excluded", "true") case Inactive
           case Pending
         }
         case class StatusMessage(status: StatusWithExcluded) derives Schema
@@ -585,10 +585,10 @@ enum StatusWithExcluded {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.exclude modifier excludes variant cases from rendered proto") {
+      test("proteus.excluded modifier excludes variant cases from rendered proto") {
         enum ContactWithExcluded derives Schema {
           case Email(address: String)
-          @config("proteus.exclude", "true") case Phone(number: String)
+          @config("proteus.excluded", "true") case Phone(number: String)
           case Slack(workspace: String)
         }
         case class ContactMessage(contact: ContactWithExcluded) derives Schema
