@@ -5,10 +5,11 @@ import java.time.*
 import scala.util.Try
 
 import zio.blocks.schema.*
-import zio.blocks.schema.Modifier.config
 import zio.blocks.schema.binding.Binding
 import zio.test.*
 import zio.test.Assertion.*
+
+import proteus.Modifiers.*
 
 object ProtobufCodecSpec extends ZIOSpecDefault {
 
@@ -405,12 +406,11 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         enum Item derives Schema  {
           case A, B
         }
-        @config("proteus.oneof", "true")
         enum Item2 derives Schema {
           case A, B
         }
         val itemCodec: ProtobufCodec[Item] = Schema[Item2]
-          .derive(deriver)
+          .derive(deriver.modifier[Item2](oneOf(OneOfFlag.Inline)))
           .transform(
             _ match {
               case Item2.A => Item.A
@@ -508,14 +508,13 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("Proteus Modifiers")(
-      test("proteus.oneof modifier forces enum to oneOf encoding") {
+      test("proteus oneof modifier forces enum to oneOf encoding") {
         enum RegularEnum derives Schema {
           case First
           case Second
           case Third
         }
 
-        @config("proteus.oneof", "true")
         enum ForceOneOf derives Schema {
           case First
           case Second
@@ -526,7 +525,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         case class MessageWithOneOf(id: Int, choice: ForceOneOf) derives Schema
 
         val enumCodec  = Schema[MessageWithEnum].derive(deriver)
-        val oneOfCodec = Schema[MessageWithOneOf].derive(deriver)
+        val oneOfCodec = Schema[MessageWithOneOf].derive(deriver.modifier[ForceOneOf](oneOf))
 
         val enumMessage  = MessageWithEnum(1, RegularEnum.First)
         val oneOfMessage = MessageWithOneOf(1, ForceOneOf.First)
@@ -541,45 +540,37 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
           assert(oneOfDecoded)(equalTo(oneOfMessage)) &&
           assert(enumEncoded)(not(equalTo(oneOfEncoded)))
       },
-      test("proteus.nested modifier") {
-        @config("proteus.nested", "true")
+      test("proteus nested modifier") {
         case class NestedData(value: String, count: Int) derives Schema
         case class MessageWithNested(id: Int, data: NestedData) derives Schema
 
-        val codec    = Schema[MessageWithNested].derive(deriver)
+        val codec    = Schema[MessageWithNested].derive(deriver.modifier[NestedData](nested))
         val original = MessageWithNested(1, NestedData("test", 42))
         val encoded  = codec.encode(original)
         val decoded  = codec.decode(encoded)
 
         assert(decoded)(equalTo(original))
       },
-      test("proteus.oneof inline modifier") {
-        @config("proteus.oneof", "inline")
+      test("proteus oneof inline modifier") {
         enum InlineContact derives Schema {
           case Email(address: String)
           case Phone(number: String)
         }
         case class MessageWithInline(id: Int, contact: InlineContact) derives Schema
 
-        val codec    = Schema[MessageWithInline].derive(deriver)
+        val codec    = Schema[MessageWithInline].derive(deriver.modifier[InlineContact](oneOf(OneOfFlag.Inline)))
         val original = MessageWithInline(1, InlineContact.Email("test@example.com"))
         val encoded  = codec.encode(original)
         val decoded  = codec.decode(encoded)
 
         assert(decoded)(equalTo(original))
       },
-      test("proteus.excluded modifier skips field from codec") {
-        case class MessageWithExcluded(
-          id: Int,
-          name: String,
-          @config("proteus.excluded", "true") excluded: String
-        ) derives Schema
-        case class MessageWithoutExcluded(
-          id: Int,
-          name: String
-        ) derives Schema
+      test("proteus excluded modifier skips field from codec") {
+        case class MessageWithExcluded(id: Int, name: String, excluded: String) derives Schema
+        case class MessageWithoutExcluded(id: Int, name: String) derives Schema
 
-        val codecWithExcluded    = Schema[MessageWithExcluded].derive(deriver)
+        val codecWithExcluded    =
+          Schema[MessageWithExcluded].derive(deriver.modifier[MessageWithExcluded]("excluded", excluded))
         val codecWithoutExcluded = Schema[MessageWithoutExcluded].derive(deriver)
 
         val messageWithExcluded    = MessageWithExcluded(1, "test", "should be ignored")
@@ -593,10 +584,10 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
           // And the encoded bytes should be identical
           assert(encodedWithExcluded)(equalTo(encodedWithoutExcluded))
       },
-      test("proteus.excluded modifier excludes enum cases from codec") {
+      test("proteus excluded modifier excludes enum cases from codec") {
         enum StatusWithExcluded derives Schema    {
           case Active
-          @config("proteus.excluded", "true") case Inactive
+          case Inactive
           case Pending
         }
         enum StatusWithoutExcluded derives Schema {
@@ -607,7 +598,8 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         case class MessageWithExcludedEnum(status: StatusWithExcluded) derives Schema
         case class MessageWithoutExcludedEnum(status: StatusWithoutExcluded) derives Schema
 
-        val codecWithExcluded    = Schema[MessageWithExcludedEnum].derive(deriver)
+        val codecWithExcluded    =
+          Schema[MessageWithExcludedEnum].derive(deriver.modifier[StatusWithExcluded]("Inactive", excluded))
         val codecWithoutExcluded = Schema[MessageWithoutExcludedEnum].derive(deriver)
 
         val messageWithExcluded    = MessageWithExcludedEnum(StatusWithExcluded.Active)
@@ -619,10 +611,10 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         // The encoded messages should be identical since excluded enum case is not present
         assert(encodedWithExcluded)(equalTo(encodedWithoutExcluded))
       },
-      test("proteus.excluded modifier excludes variant cases from codec") {
+      test("proteus excluded modifier excludes variant cases from codec") {
         enum ContactWithExcluded derives Schema    {
           case Email(address: String)
-          @config("proteus.excluded", "true") case Phone(number: String)
+          case Phone(number: String)
           case Slack(workspace: String)
         }
         enum ContactWithoutExcluded derives Schema {
@@ -633,7 +625,8 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         case class MessageWithExcludedVariant(contact: ContactWithExcluded) derives Schema
         case class MessageWithoutExcludedVariant(contact: ContactWithoutExcluded) derives Schema
 
-        val codecWithExcluded    = Schema[MessageWithExcludedVariant].derive(deriver)
+        val codecWithExcluded    =
+          Schema[MessageWithExcludedVariant].derive(deriver.modifier[ContactWithExcluded]("Phone", excluded))
         val codecWithoutExcluded = Schema[MessageWithoutExcludedVariant].derive(deriver)
 
         val messageWithExcluded    = MessageWithExcludedVariant(ContactWithExcluded.Email("test@example.com"))
@@ -757,8 +750,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
       }
     ),
     suite("Transform")(
-      test("proteus.oneof inline modifier with transform") {
-        @config("proteus.oneof", "inline")
+      test("proteus oneof inline modifier with transform") {
         enum ContactType derives Schema {
           case Email(address: String)
           case Phone(number: String)
@@ -769,7 +761,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
         val transformedCodec: ProtobufCodec[ContactWrapper] =
           Schema[ContactType]
-            .derive(deriver)
+            .derive(deriver.modifier[ContactType](oneOf(OneOfFlag.Inline)))
             .transform[ContactWrapper](contact => ContactWrapper(contact), wrapper => wrapper.contact)
 
         val codec = Schema[MessageWithContact]

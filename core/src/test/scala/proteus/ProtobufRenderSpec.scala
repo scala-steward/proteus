@@ -1,10 +1,10 @@
 package proteus
 
 import zio.blocks.schema.*
-import zio.blocks.schema.Modifier.config
 import zio.blocks.schema.Schema
 import zio.test.*
 
+import proteus.Modifiers.*
 import proteus.ProtoIR.{CompilationUnit, Statement}
 
 object ProtobufRenderSpec extends ZIOSpecDefault {
@@ -193,12 +193,11 @@ message KeyMessage {
       }
     ),
     suite("Modifier Rendering")(
-      test("proteus.nested modifier creates nested message") {
-        @config("proteus.nested", "true")
+      test("proteus nested modifier creates nested message") {
         case class NestedData(value: String) derives Schema
         case class MessageWithNested(id: Int, data: NestedData) derives Schema
 
-        val codec    = Schema[MessageWithNested].derive(deriver)
+        val codec    = Schema[MessageWithNested].derive(deriver.modifier[NestedData](nested))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -216,12 +215,11 @@ message MessageWithNested {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.oneof modifier forces oneOf instead of enum") {
-        @config("proteus.oneof", "true")
+      test("proteus oneof modifier forces oneOf instead of enum") {
         enum ForceOneOf derives Schema { case First, Second, Third }
         case class MessageWithOneOf(choice: ForceOneOf) derives Schema
 
-        val codec    = Schema[MessageWithOneOf].derive(deriver)
+        val codec    = Schema[MessageWithOneOf].derive(deriver.modifier[ForceOneOf](oneOf))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -248,15 +246,14 @@ message Third {}
 
         assertTrue(rendered == expected)
       },
-      test("proteus.oneof inline modifier inlines variant into parent message") {
-        @config("proteus.oneof", "inline")
+      test("proteus oneof inline modifier inlines variant into parent message") {
         enum InlineContact derives Schema {
           case Email(address: String)
           case Phone(number: String)
         }
         case class MessageWithInline(contact: InlineContact) derives Schema
 
-        val codec    = Schema[MessageWithInline].derive(deriver)
+        val codec    = Schema[MessageWithInline].derive(deriver.modifier[InlineContact](oneOf(OneOfFlag.Inline)))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -280,8 +277,7 @@ message Phone {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.oneof inline modifier with transform") {
-        @config("proteus.oneof", "inline")
+      test("proteus oneof inline modifier with transform") {
         enum ContactType derives Schema {
           case Email(address: String)
           case Phone(number: String)
@@ -292,13 +288,10 @@ message Phone {
 
         val transformedCodec: ProtobufCodec[ContactWrapper] =
           Schema[ContactType]
-            .derive(deriver)
+            .derive(deriver.modifier[ContactType](oneOf(OneOfFlag.Inline)))
             .transform[ContactWrapper](contact => ContactWrapper(contact), wrapper => wrapper.contact)
 
-        val parentCodec = Schema[MessageWithContact]
-          .deriving(deriver)
-          .instance(Schema[ContactWrapper].reflect.asRecord.get.typeName, transformedCodec)
-          .derive
+        val parentCodec = Schema[MessageWithContact].derive(deriver.instance(transformedCodec))
 
         val rendered = renderCodec(parentCodec)
 
@@ -325,15 +318,14 @@ message Phone {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.oneof nested modifier creates nested messages in oneOf") {
-        @config("proteus.oneof", "nested")
+      test("proteus oneof nested modifier creates nested messages in oneOf") {
         enum NestedContact derives Schema {
           case Email(address: String)
           case Phone(number: String, country: String)
         }
         case class ContactMessage(contact: NestedContact) derives Schema
 
-        val codec    = Schema[ContactMessage].derive(deriver)
+        val codec    = Schema[ContactMessage].derive(deriver.modifier[NestedContact](oneOf(OneOfFlag.Nested)))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -362,13 +354,12 @@ message NestedContact {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.oneof nested vs regular oneof behavior") {
+      test("proteus oneof nested vs regular oneof behavior") {
         enum RegularContact derives Schema {
           case Email(address: String)
           case Phone(number: String)
         }
 
-        @config("proteus.oneof", "nested")
         enum NestedContact derives Schema {
           case Email(address: String)
           case Phone(number: String)
@@ -378,7 +369,7 @@ message NestedContact {
         case class NestedMessage(contact: NestedContact) derives Schema
 
         val regularCodec    = Schema[RegularMessage].derive(deriver)
-        val nestedCodec     = Schema[NestedMessage].derive(deriver)
+        val nestedCodec     = Schema[NestedMessage].derive(deriver.modifier[NestedContact](oneOf(OneOfFlag.Nested)))
         val regularRendered = renderCodec(regularCodec)
         val nestedRendered  = renderCodec(nestedCodec)
 
@@ -433,11 +424,10 @@ message NestedContact {
         assertTrue(regularRendered == expectedRegular) &&
           assertTrue(nestedRendered == expectedNested)
       },
-      test("proteus.reserved modifier skips reserved field numbers") {
-        @config("proteus.reserved", "2,4,6")
+      test("proteus reserved modifier skips reserved field numbers") {
         case class ReservedMessage(id: Int, name: String, value: String, active: Boolean) derives Schema
 
-        val codec    = Schema[ReservedMessage].derive(deriver)
+        val codec    = Schema[ReservedMessage].derive(deriver.modifier[ReservedMessage](reserved(2, 4, 6)))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -455,19 +445,22 @@ message ReservedMessage {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.reserved modifier on inline oneOf field controls case indexes") {
-        @config("proteus.oneof", "inline")
+      test("proteus reserved modifier on inline oneOf field controls case indexes") {
         enum ContactType derives Schema {
           case Email(address: String)
           case Phone(number: String)
         }
         case class ContactMessage(
           id: Int,
-          @config("proteus.reserved", "2,5") contact: ContactType,
+          contact: ContactType,
           test: String
         ) derives Schema
 
-        val codec    = Schema[ContactMessage].derive(deriver)
+        val codec    = Schema[ContactMessage].derive(
+          deriver
+            .modifier[ContactType](oneOf(OneOfFlag.Inline))
+            .modifier[ContactMessage]("contact", reserved(2, 5))
+        )
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -493,12 +486,11 @@ message Phone {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.rename modifier renames type") {
-        @config("proteus.rename", "RenamedUser")
+      test("proteus rename modifier renames type") {
         case class User(id: Int, name: String) derives Schema
         case class UserMessage(user: User) derives Schema
 
-        val codec    = Schema[UserMessage].derive(deriver)
+        val codec    = Schema[UserMessage].derive(deriver.modifier[User](rename("RenamedUser")))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -516,12 +508,11 @@ message RenamedUser {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.enum.prefix modifier adds prefix to enum members") {
-        @config("proteus.enum.prefix", "STATUS")
+      test("proteus enum prefix modifier adds prefix to enum members") {
         enum Priority derives Schema { case Low, Medium, High }
         case class PriorityMessage(priority: Priority) derives Schema
 
-        val codec    = Schema[PriorityMessage].derive(deriver)
+        val codec    = Schema[PriorityMessage].derive(deriver.modifier[Priority](enumPrefix("STATUS")))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -540,13 +531,9 @@ enum Priority {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.excluded modifier excludes field from rendered proto") {
-        case class MessageWithExcluded(
-          id: Int,
-          name: String,
-          @config("proteus.excluded", "true") excluded: String
-        ) derives Schema
-        val codec    = Schema[MessageWithExcluded].derive(deriver)
+      test("proteus excluded modifier excludes field from rendered proto") {
+        case class MessageWithExcluded(id: Int, name: String, excluded: String) derives Schema
+        val codec    = Schema[MessageWithExcluded].derive(deriver.modifier[MessageWithExcluded]("excluded", excluded))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -560,14 +547,14 @@ message MessageWithExcluded {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.excluded modifier excludes enum cases from rendered proto") {
+      test("proteus excluded modifier excludes enum cases from rendered proto") {
         enum StatusWithExcluded derives Schema {
           case Active
-          @config("proteus.excluded", "true") case Inactive
+          case Inactive
           case Pending
         }
         case class StatusMessage(status: StatusWithExcluded) derives Schema
-        val codec    = Schema[StatusMessage].derive(deriver)
+        val codec    = Schema[StatusMessage].derive(deriver.modifier[StatusWithExcluded]("Inactive", excluded))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -585,14 +572,14 @@ enum StatusWithExcluded {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.excluded modifier excludes variant cases from rendered proto") {
+      test("proteus excluded modifier excludes variant cases from rendered proto") {
         enum ContactWithExcluded derives Schema {
           case Email(address: String)
-          @config("proteus.excluded", "true") case Phone(number: String)
+          case Phone(number: String)
           case Slack(workspace: String)
         }
         case class ContactMessage(contact: ContactWithExcluded) derives Schema
-        val codec    = Schema[ContactMessage].derive(deriver)
+        val codec    = Schema[ContactMessage].derive(deriver.modifier[ContactWithExcluded]("Phone", excluded))
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -620,16 +607,14 @@ message Slack {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.comment modifier renders field comments") {
-        case class MessageWithComments(
-          @config("proteus.comment", "User identifier")
-          id: Int,
-          @config("proteus.comment", "User's display name")
-          name: String,
-          email: String
-        ) derives Schema
+      test("proteus comment modifier renders field comments") {
+        case class MessageWithComments(id: Int, name: String, email: String) derives Schema
 
-        val codec    = Schema[MessageWithComments].derive(deriver)
+        val codec    = Schema[MessageWithComments].derive(
+          deriver
+            .modifier[MessageWithComments]("id", comment("User identifier"))
+            .modifier[MessageWithComments]("name", comment("User's display name"))
+        )
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -644,20 +629,22 @@ message MessageWithComments {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.comment modifier renders type-level comments") {
-        @config("proteus.comment", "User profile information")
+      test("proteus comment modifier renders type-level comments") {
         case class UserProfile(
           id: Int,
           name: String
         ) derives Schema
 
-        @config("proteus.comment", "Status levels for users")
         enum UserStatus derives Schema {
           case Active, Inactive, Suspended
         }
         case class MessageWithEnums(profile: UserProfile, status: UserStatus) derives Schema
 
-        val codec    = Schema[MessageWithEnums].derive(deriver)
+        val codec    = Schema[MessageWithEnums].derive(
+          deriver
+            .modifier[UserProfile](comment("User profile information"))
+            .modifier[UserStatus](comment("Status levels for users"))
+        )
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 
@@ -684,17 +671,15 @@ enum UserStatus {
 
         assertTrue(rendered == expected)
       },
-      test("proteus.comment modifier renders both type-level and field-level comments") {
-        @config("proteus.comment", "Complete user information")
-        case class FullUser(
-          @config("proteus.comment", "Unique user identifier")
-          id: Int,
-          @config("proteus.comment", "Display name")
-          name: String,
-          email: String
-        ) derives Schema
+      test("proteus comment modifier renders both type-level and field-level comments") {
+        case class FullUser(id: Int, name: String, email: String) derives Schema
 
-        val codec    = Schema[FullUser].derive(deriver)
+        val codec    = Schema[FullUser].derive(
+          deriver
+            .modifier[FullUser](comment("Complete user information"))
+            .modifier[FullUser]("id", comment("Unique user identifier"))
+            .modifier[FullUser]("name", comment("Display name"))
+        )
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
 

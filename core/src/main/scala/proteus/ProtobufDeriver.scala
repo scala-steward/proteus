@@ -8,28 +8,31 @@ import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.*
 import zio.blocks.schema.binding.SeqConstructor.*
 import zio.blocks.schema.derive.*
-import zio.blocks.schema.derive.InstanceOverride.By
 
 import proteus.ProtobufCodec.MessageField.*
 import proteus.ProtobufDeriver.*
 import proteus.internal.*
 
-case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vector[InstanceOverride[ProtobufCodec, ?]])
+case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vector[InstanceOverride], modifiers: Vector[ModifierOverride])
   extends Deriver[ProtobufCodec] {
 
-  private val oneOfModifier      = "proteus.oneof"
-  private val nestedModifier     = "proteus.nested"
-  private val excludedModifier   = "proteus.excluded"
-  private val reservedModifier   = "proteus.reserved"
-  private val renameModifier     = "proteus.rename"
-  private val enumPrefixModifier = "proteus.enum.prefix"
-  private val commentModifier    = "proteus.comment"
-
   def instance[B: Schema](instance: => ProtobufCodec[B]): ProtobufDeriver =
-    copy(instances = instances :+ InstanceOverride(By.Type(Schema[B].reflect.typeName), Lazy(instance)))
+    copy(instances = instances :+ InstanceOverrideByType(Schema[B].reflect.typeName, Lazy(instance)))
 
   def instance[B](typeName: TypeName[B], instance: => ProtobufCodec[B]): ProtobufDeriver =
-    copy(instances = instances :+ InstanceOverride(By.Type(typeName), Lazy(instance)))
+    copy(instances = instances :+ InstanceOverrideByType(typeName, Lazy(instance)))
+
+  def modifier[B: Schema](modifier: Modifier.Reflect): ProtobufDeriver =
+    copy(modifiers = modifiers :+ ModifierReflectOverrideByType(Schema[B].reflect.typeName, modifier))
+
+  def modifier[B](typeName: TypeName[B], modifier: Modifier.Reflect): ProtobufDeriver =
+    copy(modifiers = modifiers :+ ModifierReflectOverrideByType(typeName, modifier))
+
+  def modifier[B: Schema](termName: String, modifier: Modifier.Term): ProtobufDeriver =
+    copy(modifiers = modifiers :+ ModifierTermOverride(Schema[B].reflect.typeName, termName, modifier))
+
+  def modifier[B](typeName: TypeName[B], termName: String, modifier: Modifier.Term): ProtobufDeriver =
+    copy(modifiers = modifiers :+ ModifierTermOverride(typeName, termName, modifier))
 
   def enable(flag: DerivationFlag): ProtobufDeriver =
     copy(flags = flags + flag)
@@ -37,7 +40,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
   def disable(flag: DerivationFlag): ProtobufDeriver =
     copy(flags = flags - flag)
 
-  override def instanceOverrides: IndexedSeq[InstanceOverride[ProtobufCodec, ?]] = instances
+  override def instanceOverrides: IndexedSeq[InstanceOverride] = instances
+
+  override def modifierOverrides: IndexedSeq[ModifierOverride] = modifiers
 
   private val instanceCache  = java.util.concurrent.ConcurrentHashMap[TypeName[?], ProtobufCodec.Message[Any]]()
   private val visitedCache   = new ThreadLocal[java.util.IdentityHashMap[TypeName[?], Unit]] {
@@ -52,7 +57,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     typeName: TypeName[A],
     binding: Binding[BindingType.Primitive, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Primitive]
+    modifiers: Seq[Modifier.Reflect]
   ): Lazy[ProtobufCodec[A]] =
     Lazy(ProtobufCodec.Primitive(primitiveType))
 
@@ -61,7 +66,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     typeName: TypeName[A],
     binding: Binding[BindingType.Record, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Record]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[A]] = {
     val visited   = visitedCache.get
     val recursive = recursiveCache.get
@@ -186,7 +191,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     typeName: TypeName[A],
     binding: Binding[BindingType.Variant, A],
     doc: Doc,
-    modifiers: Seq[Modifier.Variant]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[A]] = {
     val filteredCases = cases.filterNot(c =>
       c.modifiers.exists { case Modifier.config(`excludedModifier`, _) => true; case _ => false } ||
@@ -262,7 +267,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     typeName: TypeName[C[A]],
     binding: Binding[BindingType.Seq[C], C[A]],
     doc: Doc,
-    modifiers: Seq[Modifier.Seq]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[C[A]]] = {
     val seqBinding = binding.asInstanceOf[Binding.Seq[C, A]]
     D.instance(element.metadata).map { instance =>
@@ -285,7 +290,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     typeName: TypeName[M[K, V]],
     binding: Binding[BindingType.Map[M], M[K, V]],
     doc: Doc,
-    modifiers: Seq[Modifier.Map]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[M[K, V]]] = {
     val mapBinding    = binding.asInstanceOf[Binding.Map[M, K, V]]
     val registers     = Reflect.Record.registers(Array(key, value))
@@ -376,7 +381,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     }
   }
 
-  def deriveDynamic[F[_, _]](binding: Binding[BindingType.Dynamic, DynamicValue], doc: Doc, modifiers: Seq[Modifier.Dynamic])(
+  def deriveDynamic[F[_, _]](binding: Binding[BindingType.Dynamic, DynamicValue], doc: Doc, modifiers: Seq[Modifier.Reflect])(
     implicit F: HasBinding[F],
     D: HasInstance[F]
   ): Lazy[ProtobufCodec[DynamicValue]] = Lazy.fail(new Exception("Dynamic is not supported"))
@@ -386,7 +391,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     typeName: TypeName[A],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
-    modifiers: Seq[Modifier.Wrapper]
+    modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[A]] = {
     val wrapperBinding = binding.asInstanceOf[Binding.Wrapper[A, B]]
     D.instance(wrapped.metadata).map { wrappedCodec =>
@@ -508,7 +513,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
   private val unitSome   = TypeName.some(TypeName.unit)
 }
 
-object ProtobufDeriver extends ProtobufDeriver(Set.empty, Vector.empty) {
+object ProtobufDeriver extends ProtobufDeriver(Set.empty, Vector.empty, Vector.empty) {
   enum DerivationFlag {
     case OptionalAsOneOf
   }

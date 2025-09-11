@@ -37,3 +37,11 @@ private[proteus] def toSnakeCase(s: String): String =
 
 private[proteus] def toUpperSnakeCase(s: String): String =
   s.split("(?=[A-Z])").map(_.toUpperCase).mkString("_")
+
+private[proteus] val oneOfModifier      = "proteus.oneof"
+private[proteus] val nestedModifier     = "proteus.nested"
+private[proteus] val excludedModifier   = "proteus.excluded"
+private[proteus] val reservedModifier   = "proteus.reserved"
+private[proteus] val renameModifier     = "proteus.rename"
+private[proteus] val enumPrefixModifier = "proteus.enum.prefix"
+private[proteus] val commentModifier    = "proteus.comment"

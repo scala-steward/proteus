@@ -1,14 +1,13 @@
 package proteus
 
-import zio.blocks.schema.Modifier.config
 import zio.blocks.schema.Schema
 
-@config("proteus.reserved", "2")
+import proteus.Modifiers.*
+import proteus.Modifiers.OneOfFlag.*
+
 case class ServerReflectionRequest(host: String, messageRequest: MessageRequest) derives Schema
-@config("proteus.reserved", "3")
 case class ServerReflectionResponse(validHost: String, originalRequest: ServerReflectionRequest, messageResponse: MessageResponse) derives Schema
 
-@config("proteus.oneof", "inline")
 sealed trait MessageRequest derives Schema
 object MessageRequest {
   case class FileByFileName(value: String) extends MessageRequest
@@ -19,8 +18,7 @@ object MessageRequest {
   object FileContainingSymbol {
     given Schema[FileContainingSymbol] = Schema.derived[FileContainingSymbol].wrapTotal(FileContainingSymbol(_), _.value)
   }
-  @config("proteus.rename", "ExtensionRequest")
-  case class FileContainingExtension(containingType: String, extensionNumber: Int) extends MessageRequest
+  case class FileContainingExtension(containingType: String, extensionNumber: Int) extends MessageRequest derives Schema
   case class AllExtensionNumbersOfType(value: String) extends MessageRequest
   object AllExtensionNumbersOfType {
     given Schema[AllExtensionNumbersOfType] =
@@ -32,17 +30,24 @@ object MessageRequest {
   }
 }
 
-@config("proteus.oneof", "inline")
-enum MessageResponse derives Schema {
-  case FileDescriptorResponse(fileDescriptorProto: Array[Byte])
-  @config("proteus.rename", "ExtensionNumberResponse") case AllExtensionNumbersResponse(baseTypeName: String, extensionNumber: List[Int])
-  @config("proteus.rename", "ListServiceResponse") case ListServicesResponse(service: List[ServiceResponse])
-  case ErrorResponse(errorCode: Int, errorMessage: String)
+sealed trait MessageResponse derives Schema
+object MessageResponse {
+  case class FileDescriptorResponse(fileDescriptorProto: Array[Byte])                      extends MessageResponse
+  case class AllExtensionNumbersResponse(baseTypeName: String, extensionNumber: List[Int]) extends MessageResponse derives Schema
+  case class ListServicesResponse(service: List[ServiceResponse])                          extends MessageResponse derives Schema
+  case class ErrorResponse(errorCode: Int, errorMessage: String)                           extends MessageResponse
 }
 
 case class ServiceResponse(name: String) derives Schema
 
 given ProtobufDeriver = ProtobufDeriver
+  .modifier[ServerReflectionRequest](reserved(2))
+  .modifier[ServerReflectionResponse](reserved(3))
+  .modifier[MessageRequest](oneOf(Inline))
+  .modifier[MessageResponse](oneOf(Inline))
+  .modifier[MessageRequest.FileContainingExtension](rename("ExtensionRequest"))
+  .modifier[MessageResponse.AllExtensionNumbersResponse](rename("ExtensionNumberResponse"))
+  .modifier[MessageResponse.ListServicesResponse](rename("ListServiceResponse"))
 
 val serverReflectionInfoRpc = Rpc.bidiStreaming[ServerReflectionRequest, ServerReflectionResponse]("ServerReflectionInfo")
 val serverReflectionService = Service("grpc.reflection.v1", "ServerReflection").rpc(serverReflectionInfoRpc)
