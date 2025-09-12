@@ -508,6 +508,55 @@ message RenamedUser {
 
         assertTrue(rendered == expected)
       },
+      test("proteus rename modifier renames record fields") {
+        case class FieldRenameTest(id: Int, name: String, active: Boolean) derives Schema
+
+        val codec    = Schema[FieldRenameTest].derive(
+          deriver
+            .modifier[FieldRenameTest]("id", rename("identifier"))
+            .modifier[FieldRenameTest]("name", rename("full_name"))
+        )
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message FieldRenameTest {
+    int32 identifier = 1;
+    string full_name = 2;
+    bool active = 3;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
+      test("proteus rename modifier renames enum members") {
+        enum Status derives Schema { case Active, Inactive, Pending }
+        case class StatusRenameTest(status: Status) derives Schema
+
+        val codec    = Schema[StatusRenameTest].derive(
+          deriver
+            .modifier[Status]("Active", rename("ACTIVE_STATUS"))
+            .modifier[Status]("Inactive", rename("INACTIVE_STATUS"))
+        )
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message StatusRenameTest {
+    Status status = 1;
+}
+
+enum Status {
+    ACTIVE_STATUS = 0;
+    INACTIVE_STATUS = 1;
+    PENDING = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
       test("proteus enum prefix modifier adds prefix to enum members") {
         enum Priority derives Schema { case Low, Medium, High }
         case class PriorityMessage(priority: Priority) derives Schema

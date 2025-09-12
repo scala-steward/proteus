@@ -95,7 +95,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
 
             def getField[A](index: Int, field: TermInstance[F, A]): Unit =
               if (!field.term.modifiers.exists { case Modifier.config(`excludedModifier`, _) => true; case _ => false }) {
-                val name     = toSnakeCase(field.term.name)
+                val name     = getFieldName(field.term.name, field.term.modifiers)
                 val register = registers(index)
                 field.instance match {
                   case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneofField[inner]), _, _, _, _, true, _, _)) =>
@@ -146,7 +146,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                     while (allReservedIndexes.contains(id)) id += 1
                     val valueId = id
                     builder += OneofField(
-                      toSnakeCase(field.term.name),
+                      getFieldName(field.term.name, field.term.modifiers),
                       Array(
                         SimpleField(s"no_$name", emptyId, Empty.emptyCodec.transform(_ => None, _ => Empty()), register, null, None),
                         SimpleField(s"${name}_value", valueId, codec.transform(Some(_), _.get), register, null, getComment(field.term.modifiers))
@@ -213,7 +213,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         while (reservedIndexes.contains(index)) index += 1
         val a        = constructEnumCase(c).asInstanceOf[A]
         val prefix   = getEnumPrefix(modifiers)
-        val enumName = if (prefix.nonEmpty) s"${prefix.toUpperCase}_${toUpperSnakeCase(c.name)}" else toUpperSnakeCase(c.name)
+        val enumName = getEnumMemberName(c.name, c.modifiers, prefix)
         builder += ProtobufCodec.EnumValue(enumName, index, a)
         index += 1
       }
@@ -233,7 +233,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
           casesWithInstances.zipWithIndex.map { case (c, index) =>
             while (reservedIndexes.contains(id)) id += 1
             val item = SimpleField(
-              toSnakeCase(c.term.name),
+              getFieldName(c.term.name, c.term.modifiers),
               id,
               if (nestedOneOf) c.instance.makeNested else c.instance,
               register.asInstanceOf[Register[Any]],
@@ -428,6 +428,16 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     modifiers
       .collectFirst { case Modifier.config(`renameModifier`, newName) => newName }
       .getOrElse(s"${typeName.name}${typeName.params.map(getTypeName(_, Nil)).mkString}")
+
+  private def getFieldName(fieldName: String, modifiers: Seq[Modifier]): String =
+    modifiers
+      .collectFirst { case Modifier.config(`renameModifier`, newName) => newName }
+      .getOrElse(toSnakeCase(fieldName))
+
+  private def getEnumMemberName(memberName: String, modifiers: Seq[Modifier], enumPrefix: String): String =
+    modifiers
+      .collectFirst { case Modifier.config(`renameModifier`, newName) => newName }
+      .getOrElse(if (enumPrefix.nonEmpty) s"${enumPrefix.toUpperCase}_${toUpperSnakeCase(memberName)}" else toUpperSnakeCase(memberName))
 
   private def getReservedIndexes(modifiers: Seq[Modifier]): Set[Int] =
     modifiers
