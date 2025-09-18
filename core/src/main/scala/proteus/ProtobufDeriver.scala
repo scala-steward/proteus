@@ -500,7 +500,10 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         constructor.resultObject(constructor.newObjectBuilder()).asInstanceOf[A]
       case ProtobufCodec.Transform(from, _, codec)                         =>
         val inner = getDefaultValue(using codec)
-        if (inner == null) null.asInstanceOf[A] else from(inner)
+        if (inner == null) null.asInstanceOf[A]
+        else
+          try from(inner)
+          catch { case _: Exception => null.asInstanceOf[A] }
       case c: ProtobufCodec.RecursiveMessage[A]                            =>
         getDefaultValue(using c.codec)
       case ProtobufCodec.Bytes                                             =>
