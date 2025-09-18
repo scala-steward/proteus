@@ -29,7 +29,7 @@ addCommandAlias("check", "all scalafmtSbtCheck scalafmtCheck test:scalafmtCheck"
 lazy val root = project
   .in(file("."))
   .settings(publish / skip := true)
-  .aggregate(core.jvm, core.js, grpc, zioGrpc, fs2Grpc, benchmarks, examples)
+  .aggregate(core.jvm, core.js, grpc, zioGrpc, fs2Grpc, json.jvm, json.js, benchmarks, examples)
 
 lazy val core = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
