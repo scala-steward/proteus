@@ -1,6 +1,6 @@
 package proteus.json
 
-import com.github.plokhotnyuk.jsoniter_scala.core.*
+import io.circe.syntax.*
 import zio.blocks.schema.Schema
 import zio.test.*
 
@@ -16,49 +16,49 @@ object JsonSpec extends ZIOSpecDefault {
       test("toJson serializes Int") {
         case class IntMessage(value: Int) derives Schema
         val instance = IntMessage(42)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":42}""")
       },
       test("toJson serializes Long") {
         case class LongMessage(value: Long) derives Schema
         val instance = LongMessage(123456789L)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":123456789}""")
       },
       test("toJson serializes String") {
         case class StringMessage(value: String) derives Schema
         val instance = StringMessage("hello world")
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":"hello world"}""")
       },
       test("toJson serializes Boolean true") {
         case class BoolMessage(value: Boolean) derives Schema
         val instance = BoolMessage(true)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":true}""")
       },
       test("toJson serializes Boolean false") {
         case class BoolMessage(value: Boolean) derives Schema
         val instance = BoolMessage(false)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":false}""")
       },
       test("toJson serializes Double") {
         case class DoubleMessage(value: Double) derives Schema
         val instance = DoubleMessage(3.14159)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":3.14159}""")
       },
       test("toJson serializes Float") {
         case class FloatMessage(value: Float) derives Schema
         val instance = FloatMessage(2.5f)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":2.5}""")
       },
       test("toJson handles String with special characters") {
         case class StringMessage(value: String) derives Schema
         val instance = StringMessage("hello\nworld\"test")
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":"hello\nworld\"test"}""")
       }
     ),
@@ -67,7 +67,7 @@ object JsonSpec extends ZIOSpecDefault {
         enum Status derives Schema { case Active, Inactive, Pending }
         case class StatusMessage(status: Status) derives Schema
         val instance = StatusMessage(Status.Active)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"status":"ACTIVE"}""")
       },
       test("toJson serializes enum with different values") {
@@ -78,9 +78,9 @@ object JsonSpec extends ZIOSpecDefault {
         val medium = PriorityMessage(Priority.Medium)
         val high   = PriorityMessage(Priority.High)
 
-        val lowJson    = writeToString(low)
-        val mediumJson = writeToString(medium)
-        val highJson   = writeToString(high)
+        val lowJson    = low.asJson.noSpaces
+        val mediumJson = medium.asJson.noSpaces
+        val highJson   = high.asJson.noSpaces
 
         assertTrue(lowJson == """{"priority":"LOW"}""") &&
           assertTrue(mediumJson == """{"priority":"MEDIUM"}""") &&
@@ -91,7 +91,7 @@ object JsonSpec extends ZIOSpecDefault {
         case class StatusMessage(status: Status) derives Schema
         given ProtobufDeriver = ProtobufDeriver.modifier[Status](enumPrefix("USER"))
         val instance          = StatusMessage(Status.Active)
-        val result            = writeToString(instance)
+        val result            = instance.asJson.noSpaces
         assertTrue(result == """{"status":"USER_ACTIVE"}""")
       }
     ),
@@ -99,13 +99,13 @@ object JsonSpec extends ZIOSpecDefault {
       test("toJson serializes Some value") {
         case class OptionalMessage(value: Option[String]) derives Schema
         val instance = OptionalMessage(Some("test"))
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":"test"}""")
       },
       test("toJson serializes None as null") {
         case class OptionalMessage(value: Option[String]) derives Schema
         val instance = OptionalMessage(None)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"value":null}""")
       },
       test("toJson serializes optional Int") {
@@ -113,8 +113,8 @@ object JsonSpec extends ZIOSpecDefault {
         val some = OptionalIntMessage(Some(42))
         val none = OptionalIntMessage(None)
 
-        val someJson = writeToString(some)
-        val noneJson = writeToString(none)
+        val someJson = some.asJson.noSpaces
+        val noneJson = none.asJson.noSpaces
 
         assertTrue(someJson == """{"value":42}""") &&
           assertTrue(noneJson == """{"value":null}""")
@@ -124,14 +124,14 @@ object JsonSpec extends ZIOSpecDefault {
       test("toJson serializes simple message") {
         case class SimpleMessage(id: Int, name: String, active: Boolean) derives Schema
         val instance = SimpleMessage(1, "test", true)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"id":1,"name":"test","active":true}""")
       },
       test("toJson serializes nested message") {
         case class Address(street: String, city: String) derives Schema
         case class Person(name: String, address: Address) derives Schema
         val instance = Person("John", Address("Main St", "NYC"))
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"name":"John","address":{"street":"Main St","city":"NYC"}}""")
       },
       test("toJson serializes message with optional nested message") {
@@ -141,8 +141,8 @@ object JsonSpec extends ZIOSpecDefault {
         val withContact    = User("Alice", Some(Contact("alice@test.com", Some("123-456"))))
         val withoutContact = User("Bob", None)
 
-        val withJson    = writeToString(withContact)
-        val withoutJson = writeToString(withoutContact)
+        val withJson    = withContact.asJson.noSpaces
+        val withoutJson = withoutContact.asJson.noSpaces
 
         assertTrue(withJson == """{"name":"Alice","contact":{"email":"alice@test.com","phone":"123-456"}}""") &&
           assertTrue(withoutJson == """{"name":"Bob","contact":null}""")
@@ -152,26 +152,26 @@ object JsonSpec extends ZIOSpecDefault {
       test("toJson serializes List[Int]") {
         case class ListMessage(values: List[Int]) derives Schema
         val instance = ListMessage(List(1, 2, 3))
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"values":[1,2,3]}""")
       },
       test("toJson serializes empty List") {
         case class ListMessage(values: List[String]) derives Schema
         val instance = ListMessage(List.empty)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"values":[]}""")
       },
       test("toJson serializes List of messages") {
         case class Item(id: Int, name: String) derives Schema
         case class ItemList(items: List[Item]) derives Schema
         val instance = ItemList(List(Item(1, "first"), Item(2, "second")))
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"items":[{"id":1,"name":"first"},{"id":2,"name":"second"}]}""")
       },
       test("toJson serializes Vector[String]") {
         case class VectorMessage(values: Vector[String]) derives Schema
         val instance = VectorMessage(Vector("a", "b", "c"))
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"values":["a","b","c"]}""")
       }
     ),
@@ -179,20 +179,20 @@ object JsonSpec extends ZIOSpecDefault {
       test("toJson serializes Map[String, Int]") {
         case class MapMessage(data: Map[String, Int]) derives Schema
         val instance = MapMessage(Map("one" -> 1, "two" -> 2))
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"data":[{"one":1},{"two":2}]}""" || result == """{"data":[{"two":2},{"one":1}]}""")
       },
       test("toJson serializes empty Map") {
         case class MapMessage(data: Map[String, String]) derives Schema
         val instance = MapMessage(Map.empty)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"data":[]}""")
       },
       test("toJson serializes Map with complex values") {
         case class Value(amount: Int, currency: String) derives Schema
         case class MapMessage(data: Map[String, Value]) derives Schema
         val instance = MapMessage(Map("price" -> Value(100, "USD")))
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"data":[{"price":{"amount":100,"currency":"USD"}}]}""")
       }
     ),
@@ -200,13 +200,13 @@ object JsonSpec extends ZIOSpecDefault {
       test("toJson serializes byte array") {
         case class BytesMessage(data: Array[Byte]) derives Schema
         val instance = BytesMessage(Array(1, 2, 3, 4, 5))
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"data":"<bytes>"}""")
       },
       test("toJson serializes empty byte array") {
         case class BytesMessage(data: Array[Byte]) derives Schema
         val instance = BytesMessage(Array.empty)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
         assertTrue(result == """{"data":"<bytes>"}""")
       }
     ),
@@ -222,11 +222,11 @@ object JsonSpec extends ZIOSpecDefault {
         val email = Contact(ContactType.Email("test@example.com"))
         val phone = Contact(ContactType.Phone("123-456-7890"))
 
-        val emailJson = writeToString(email)
-        val phoneJson = writeToString(phone)
+        val emailJson = email.asJson.noSpaces
+        val phoneJson = phone.asJson.noSpaces
 
-        assertTrue(emailJson == """{{"address":"test@example.com"}}""") &&
-          assertTrue(phoneJson == """{{"number":"123-456-7890"}}""")
+        assertTrue(emailJson == """{"email":{"address":"test@example.com"}}""") &&
+          assertTrue(phoneJson == """{"phone":{"number":"123-456-7890"}}""")
       },
       test("toJson serializes nested oneOf") {
         enum Status derives Schema {
@@ -237,9 +237,9 @@ object JsonSpec extends ZIOSpecDefault {
         given ProtobufDeriver = ProtobufDeriver.modifier[Status](oneOf(OneOfFlag.Nested))
 
         val user   = User("Alice", Status.Active("2023-01-01"))
-        val result = writeToString(user)
+        val result = user.asJson.noSpaces
 
-        assertTrue(result == """{"name":"Alice","status":{{"since":"2023-01-01"}}}""")
+        assertTrue(result == """{"name":"Alice","status":{"active":{"since":"2023-01-01"}}}""")
       }
     ),
     suite("Transform and Recursive Types")(
@@ -248,14 +248,14 @@ object JsonSpec extends ZIOSpecDefault {
         case class User(id: UserId, name: String) derives Schema
 
         val instance = User(UserId(123), "Alice")
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
 
         assertTrue(result == """{"id":{"value":123},"name":"Alice"}""")
       },
       test("toJson serializes recursive types") {
         case class TreeNode(value: Int, children: List[TreeNode]) derives Schema
         val instance = TreeNode(1, List(TreeNode(2, Nil), TreeNode(3, Nil)))
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
 
         assertTrue(result == """{"value":1,"children":[{"value":2,"children":[]},{"value":3,"children":[]}]}""")
       }
@@ -269,7 +269,7 @@ object JsonSpec extends ZIOSpecDefault {
             .modifier[User]("name", rename("full_name"))
 
         val instance = User(123, "Alice")
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
 
         assertTrue(result == """{"userId":123,"fullName":"Alice"}""")
       },
@@ -277,7 +277,7 @@ object JsonSpec extends ZIOSpecDefault {
         case class User(id: Int, name: String, secret: String) derives Schema
         given ProtobufDeriver = ProtobufDeriver.modifier[User]("secret", excluded)
         val instance          = User(123, "Alice", "top-secret")
-        val result            = writeToString(instance)
+        val result            = instance.asJson.noSpaces
 
         assertTrue(result == """{"id":123,"name":"Alice"}""")
       }
@@ -286,7 +286,7 @@ object JsonSpec extends ZIOSpecDefault {
       test("toJson handles zero values") {
         case class Zeros(intVal: Int, stringVal: String, boolVal: Boolean) derives Schema
         val instance = Zeros(0, "", false)
-        val result   = writeToString(instance)
+        val result   = instance.asJson.noSpaces
 
         assertTrue(result == """{"intVal":0,"stringVal":"","boolVal":false}""")
       },
@@ -311,7 +311,7 @@ object JsonSpec extends ZIOSpecDefault {
           true
         )
 
-        val result = writeToString(instance)
+        val result = instance.asJson.noSpaces
 
         assertTrue(
           result == """{"id":1,"name":"John Doe","address":{"street":"123 Main St","city":"NYC","zip":"10001"},"contact":{"email":"john@example.com","phones":["555-1234","555-5678"]},"tags":[{"role":"admin"},{"dept":"engineering"}],"active":true}""" ||

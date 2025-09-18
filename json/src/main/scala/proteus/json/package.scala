@@ -1,7 +1,7 @@
 package proteus
 package json
 
-import com.github.plokhotnyuk.jsoniter_scala.core.*
+import io.circe.*
 import zio.blocks.schema.{PrimitiveType, Schema}
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -10,74 +10,72 @@ import proteus.ProtobufCodec.*
 import proteus.ProtobufCodec.MessageField.*
 import proteus.internal.*
 
-implicit def jsonWriterCodec[A](using schema: Schema[A], deriver: ProtobufDeriver): JsonValueCodec[A] =
-  new JsonValueCodec[A] {
-    def nullValue: A                               = null.asInstanceOf[A]
-    def decodeValue(in: JsonReader, default: A): A = throw new Exception("Not implemented")
-    def encodeValue(a: A, out: JsonWriter): Unit   =
+implicit def jsonWriterCodec[A](using schema: Schema[A], deriver: ProtobufDeriver): Encoder[A] =
+  new Encoder[A] {
+    def apply(a: A): Json =
       withRegisters { registers =>
-        def loop[B](b: B, codec: ProtobufCodec[B], offset: RegisterOffset, isKey: Boolean): Unit =
+        def loop[B](b: B, codec: ProtobufCodec[B], offset: RegisterOffset): Json =
           codec match {
             case c: Primitive[_]         =>
               c.primitiveType match {
-                case _: PrimitiveType.Int     => if (isKey) out.writeKey(b) else out.writeVal(b)
-                case _: PrimitiveType.Long    => if (isKey) out.writeKey(b) else out.writeVal(b)
-                case _: PrimitiveType.Boolean => if (isKey) out.writeKey(b) else out.writeVal(b)
-                case _: PrimitiveType.String  => if (isKey) out.writeKey(b) else out.writeVal(b)
-                case _: PrimitiveType.Double  => if (isKey) out.writeKey(b) else out.writeVal(b)
-                case _: PrimitiveType.Float   => if (isKey) out.writeKey(b) else out.writeVal(b)
+                case _: PrimitiveType.Int     => Json.fromInt(b)
+                case _: PrimitiveType.Long    => Json.fromLong(b)
+                case _: PrimitiveType.Boolean => Json.fromBoolean(b)
+                case _: PrimitiveType.String  => Json.fromString(b)
+                case _: PrimitiveType.Double  => Json.fromDoubleOrNull(b)
+                case _: PrimitiveType.Float   => Json.fromFloatOrNull(b)
                 case _                        => throw new Exception(s"Unsupported primitive type: ${c.primitiveType}")
               }
-            case c: Enum[_]              => if (isKey) out.writeKey(c.namesByValue(b)) else out.writeVal(c.namesByValue(b))
+            case c: Enum[_]              => Json.fromString(c.namesByValue(b))
             case c: Message[_]           =>
-              out.writeObjectStart()
               c.deconstructor.deconstruct(registers, offset, b)
               val nextOffset = RegisterOffset.add(offset, c.usedRegisters)
+              val builder    = List.newBuilder[(String, Json)]
               var i          = 0
               while (i < c.fields.length) {
-                val field = c.fields(i)
-                field match {
-                  case f: SimpleField[?] =>
-                    out.writeKey(toCamelCase(f.name))
-                    loop(getFromRegister(registers, offset, f.register).asInstanceOf[f.codec.Focus], f.codec, nextOffset, isKey = false)
+                val field = c.fields(i) match {
+                  case f: SimpleField[?] => f
                   case f: OneofField[b]  =>
-                    val v     = getFromRegister(registers, offset, f.register).asInstanceOf[b]
-                    val index = f.discriminator.discriminate(v)
-                    val c     = f.cases(index)
-                    loop(v.asInstanceOf[c.codec.Focus], c.codec, nextOffset, isKey = false)
+                    val v = getFromRegister(registers, offset, f.register).asInstanceOf[b]
+                    f.cases(f.discriminator.discriminate(v))
                 }
+                builder +=
+                  toCamelCase(field.name) ->
+                    loop(getFromRegister(registers, offset, field.register).asInstanceOf[field.codec.Focus], field.codec, nextOffset)
                 i += 1
               }
-              out.writeObjectEnd()
+              Json.obj(builder.result()*)
             case c: Repeated[c, e]       =>
-              out.writeArrayStart()
-              val it = c.deconstructor.deconstruct[e](b)
+              val it      = c.deconstructor.deconstruct[e](b)
+              val builder = List.newBuilder[Json]
               while (it.hasNext) {
                 val v = it.next
-                loop(v, c.element, offset, isKey = false)
+                builder += loop(v, c.element, offset)
               }
-              out.writeArrayEnd()
+              Json.arr(builder.result()*)
             case c: RepeatedMap[m, k, v] =>
-              out.writeArrayStart()
-              val it = c.deconstructor.deconstruct(b.asInstanceOf[m[k, v]])
+              val it      = c.deconstructor.deconstruct(b.asInstanceOf[m[k, v]])
+              val builder = List.newBuilder[Json]
               while (it.hasNext) {
                 val v = it.next
-                out.writeObjectStart()
-                loop(c.deconstructor.getKey(v), c.element.fields(0).asInstanceOf[SimpleField[?]].codec, offset, isKey = true)
-                loop(c.deconstructor.getValue(v), c.element.fields(1).asInstanceOf[SimpleField[?]].codec, offset, isKey = false)
-                out.writeObjectEnd()
+                builder +=
+                  Json.obj(
+                    loop(c.deconstructor.getKey(v), c.element.fields(0).asInstanceOf[SimpleField[?]].codec, offset).asString.getOrElse("") ->
+                      loop(c.deconstructor.getValue(v), c.element.fields(1).asInstanceOf[SimpleField[?]].codec, offset)
+                  )
               }
-              out.writeArrayEnd()
-            case Bytes                   => out.writeVal("<bytes>")
-            case c: Transform[_, _]      => loop(c.to(b), c.codec, offset, isKey = isKey)
-            case c: RecursiveMessage[_]  => loop(b, c.codec, offset, isKey = isKey)
+              Json.arr(builder.result()*)
+            case Bytes                   => Json.fromString("<bytes>")
+            case c: Transform[_, _]      => loop(c.to(b), c.codec, offset)
+            case c: RecursiveMessage[_]  => loop(b, c.codec, offset)
             case c: Optional[_]          =>
               b match {
-                case None    => out.writeNull()
-                case Some(v) => loop(v, c.codec, offset, isKey = isKey)
+                case None    => Json.Null
+                case Some(v) => loop(v, c.codec, offset)
               }
           }
-        val codec                                                                                = schema.derive(deriver)
-        loop(a, codec, RegisterOffset.Zero, isKey = false)
+
+        val codec = schema.derive(deriver)
+        loop(a, codec, RegisterOffset.Zero)
       }
   }

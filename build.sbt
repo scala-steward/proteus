@@ -7,7 +7,7 @@ val zioTestVersion              = "2.1.20"
 val zioGrpcVersion              = "0.6.3"
 val fs2GrpcVersion              = "2.8.2"
 val chimneyVersion              = "1.8.2"
-val jsoniterVersion             = "2.37.11"
+val circeVersion                = "0.14.14"
 
 inThisBuild(
   List(
@@ -96,9 +96,7 @@ lazy val json = crossProject(JSPlatform, JVMPlatform)
   .in(file("json"))
   .settings(name := "proteus-json")
   .settings(commonSettings)
-  .settings(
-    libraryDependencies ++= Seq("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % jsoniterVersion)
-  )
+  .settings(libraryDependencies ++= Seq("io.circe" %%% "circe-core" % circeVersion))
   .dependsOn(core % "compile->compile;test->test")
   .jsSettings(Test / fork := false)
 
