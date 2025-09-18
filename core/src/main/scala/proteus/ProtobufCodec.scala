@@ -63,7 +63,7 @@ object ProtobufCodec {
     override def initialValue(): (Registers, AtomicBoolean) = (Registers(RegisterOffset.Zero), new AtomicBoolean(false))
   }
 
-  private inline def withRegisters[A](f: Registers => A): A = {
+  private[proteus] inline def withRegisters[A](f: Registers => A): A = {
     val (registers, running) = pool.get()
     if (running.compareAndSet(false, true))
       try f(registers)
@@ -153,8 +153,9 @@ object ProtobufCodec {
   case class EnumValue[A](name: String, index: Int, value: A)
 
   final case class Enum[A](name: String, values: List[EnumValue[A]], reserved: List[Int], comment: Option[String] = None) extends ProtobufCodec[A] {
-    val valuesByIndex: HashMap[Int, A]  = HashMap.from(values.map(v => (v.index, v.value)))
-    val indexesByValue: HashMap[A, Int] = HashMap.from(values.map(v => (v.value, v.index)))
+    val valuesByIndex: HashMap[Int, A]   = HashMap.from(values.map(v => (v.index, v.value)))
+    val indexesByValue: HashMap[A, Int]  = HashMap.from(values.map(v => (v.value, v.index)))
+    val namesByValue: HashMap[A, String] = HashMap.from(values.map(v => (v.value, v.name)))
 
     def toProtoWriter(a: A, id: Int, alwaysEncode: Boolean): ProtobufWriter = {
       val index = indexesByValue(a)

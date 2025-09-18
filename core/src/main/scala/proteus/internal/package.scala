@@ -38,6 +38,12 @@ private[proteus] def toSnakeCase(s: String): String =
 private[proteus] def toUpperSnakeCase(s: String): String =
   s.split("(?=[A-Z])").map(_.toUpperCase).mkString("_")
 
+private[proteus] def toCamelCase(s: String): String =
+  s.split("_").toList match {
+    case Nil          => ""
+    case head :: tail => head.toLowerCase + tail.map(_.capitalize).mkString
+  }
+
 private[proteus] val oneOfModifier      = "proteus.oneof"
 private[proteus] val nestedModifier     = "proteus.nested"
 private[proteus] val excludedModifier   = "proteus.excluded"
