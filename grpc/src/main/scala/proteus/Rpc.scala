@@ -15,8 +15,8 @@ sealed trait Rpc[Req, Resp](using requestCodec: ProtobufCodec[Req], responseCode
   val toProtoIR: ProtoIR.Rpc =
     ProtoIR.Rpc(
       name = name,
-      request = ProtoIR.RpcMessage(ProtoIR.Fqn(None, requestCodec.asInstanceOf[ProtobufCodec.Message[?]].name)),
-      response = ProtoIR.RpcMessage(ProtoIR.Fqn(None, responseCodec.asInstanceOf[ProtobufCodec.Message[?]].name)),
+      request = ProtoIR.RpcMessage(ProtoIR.Fqn(None, requestCodec.getName.getOrElse(""))),
+      response = ProtoIR.RpcMessage(ProtoIR.Fqn(None, responseCodec.getName.getOrElse(""))),
       streamingRequest = self match {
         case _: Rpc.ClientStreaming[?, ?] | _: Rpc.BidiStreaming[?, ?] => true
         case _                                                         => false

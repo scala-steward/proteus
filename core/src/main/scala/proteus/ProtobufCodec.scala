@@ -56,6 +56,15 @@ sealed trait ProtobufCodec[A] {
       case Optional(codec)            => Optional(codec.makeNested)
       case _                          => this
     }
+
+  private[proteus] def getName: Option[String] =
+    this match {
+      case message: Message[_]     => Some(message.name)
+      case Transform(_, _, codec)  => codec.getName
+      case RecursiveMessage(thunk) => Some(thunk().name)
+      case Optional(codec)         => codec.getName
+      case _                       => None
+    }
 }
 
 object ProtobufCodec {
