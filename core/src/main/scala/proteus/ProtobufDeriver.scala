@@ -207,6 +207,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
       D.instance(filteredCases.find(c => c.name == unitSome.name).get.value.asRecord.get.fields.head.value.metadata)
         .map(ProtobufCodec.Optional(_).asInstanceOf[ProtobufCodec[A]])
     else if (isEnum(filteredCases, modifiers)) {
+      val nested          = modifiers.collectFirst { case Modifier.config(`nestedModifier`, _) => true }.getOrElse(false)
       val reservedIndexes = getReservedIndexes(modifiers).toList
       val builder         = List.newBuilder[ProtobufCodec.EnumValue[A]]
       var index           = 0
@@ -218,7 +219,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         builder += ProtobufCodec.EnumValue(enumName, index, a)
         index += 1
       }
-      Lazy(ProtobufCodec.Enum(getTypeName(typeName, modifiers), builder.result(), reservedIndexes, getComment(modifiers)))
+      Lazy(ProtobufCodec.Enum(getTypeName(typeName, modifiers), builder.result(), reservedIndexes, getComment(modifiers), nested = nested))
     } else {
       val nested        = modifiers.collectFirst { case Modifier.config(`nestedModifier`, _) => true }.getOrElse(false)
       val inlineOneOf   = modifiers.collectFirst { case Modifier.config(`oneOfModifier`, value) => value.contains("inline") }.getOrElse(false)

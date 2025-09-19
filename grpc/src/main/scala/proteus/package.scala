@@ -99,6 +99,8 @@ extension (msg: ProtoIR.Message) {
         builder.addNestedType(nestedMessage.toDescriptor)
       case ProtoIR.MessageElement.EnumDefElement(nestedEnum)          =>
         builder.addEnumType(nestedEnum.toDescriptor)
+      case ProtoIR.MessageElement.NestedEnumElement(nestedEnum)       =>
+        builder.addEnumType(nestedEnum.toDescriptor)
     }
 
     builder.build()

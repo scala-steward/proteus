@@ -164,7 +164,8 @@ object ProtobufCodec {
 
   case class EnumValue[A](name: String, index: Int, value: A)
 
-  final case class Enum[A](name: String, values: List[EnumValue[A]], reserved: List[Int], comment: Option[String] = None) extends ProtobufCodec[A] {
+  final case class Enum[A](name: String, values: List[EnumValue[A]], reserved: List[Int], comment: Option[String] = None, nested: Boolean)
+    extends ProtobufCodec[A] {
     val valuesByIndex: HashMap[Int, A]   = HashMap.from(values.map(v => (v.index, v.value)))
     val indexesByValue: HashMap[A, Int]  = HashMap.from(values.map(v => (v.value, v.index)))
     val namesByValue: HashMap[A, String] = HashMap.from(values.map(v => (v.value, v.name)))
@@ -220,12 +221,13 @@ object ProtobufCodec {
     def toProtoIR: ProtoIR.Message = {
       val elements = fields.map(_.toProtoIR)
 
-      def findNested[A](codec: ProtobufCodec[A], goDeep: Boolean = false): List[ProtoIR.MessageElement.NestedMessageElement] =
+      def findNested[A](codec: ProtobufCodec[A], goDeep: Boolean = false): List[ProtoIR.MessageElement] =
         codec match {
           case c: Message[_]           =>
             if (c.nested) List(ProtoIR.MessageElement.NestedMessageElement(c.toProtoIR))
             else if (goDeep) c.simpleFields.collect(field => findNested(field.codec)).flatten.distinct
             else Nil
+          case c: Enum[_]              => if (c.nested) List(ProtoIR.MessageElement.NestedEnumElement(c.toProtoIR)) else Nil
           case c: Transform[_, _]      => findNested(c.codec, goDeep)
           case c: Optional[_]          => findNested(c.codec, goDeep)
           case c: Repeated[_, _]       => findNested(c.element, goDeep)

@@ -52,6 +52,9 @@ object ProtoIR {
     final case class NestedMessageElement(message: Message) extends MessageElement {
       def collectTypeReferences: Set[String] = message.collectTypeReferences
     }
+    final case class NestedEnumElement(enumValue: Enum)     extends MessageElement {
+      def collectTypeReferences: Set[String] = Set.empty
+    }
   }
 
   final case class Oneof(name: String, fields: List[Field])

@@ -82,6 +82,7 @@ object Renderer {
         case MessageElement.EnumDefElement(enumDef)       => renderEnum(enumDef)
         case MessageElement.OneofElement(oneof)           => renderOneof(oneof)
         case MessageElement.NestedMessageElement(message) => many(renderMessage(message), emptyLine)
+        case MessageElement.NestedEnumElement(enumDef)    => many(renderEnum(enumDef), emptyLine)
       }
 
     def renderReserved(reserved: List[Reserved]): Text = {
