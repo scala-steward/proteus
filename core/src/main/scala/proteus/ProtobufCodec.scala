@@ -539,7 +539,7 @@ object ProtobufCodec {
           if (visited.contains(c.name)) Nil
           else {
             visited.add(c.name)
-            List(ProtoIR.TopLevelDef.EnumDef(c.toProtoIR))
+            if (c.nested) Nil else List(ProtoIR.TopLevelDef.EnumDef(c.toProtoIR))
           }
         case _                       => Nil
       }
