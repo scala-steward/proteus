@@ -10,6 +10,7 @@ object Modifiers {
   val oneOf: Modifier.Reflect                      = Modifier.config(oneOfModifier, "")
   def rename(name: String): Modifier.config        = Modifier.config(renameModifier, name)
   def enumPrefix(prefix: String): Modifier.Reflect = Modifier.config(enumPrefixModifier, prefix)
+  def enumSuffix(suffix: String): Modifier.Reflect = Modifier.config(enumSuffixModifier, suffix)
   def comment(comment: String): Modifier.config    = Modifier.config(commentModifier, comment)
   def reserved(indexes: Int*): Modifier.config     = Modifier.config(reservedModifier, indexes.mkString(","))
   def oneOf(flags: OneOfFlag*): Modifier.Reflect   = Modifier.config(oneOfModifier, flags.mkString(",").toLowerCase)

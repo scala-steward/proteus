@@ -895,6 +895,55 @@ enum IOUtils {
 
         assertTrue(rendered == expected)
       },
+      test("proteus enum suffix modifier adds suffix to enum members") {
+        enum Priority derives Schema { case Low, Medium, High }
+        case class PriorityMessage(priority: Priority) derives Schema
+
+        val codec    = Schema[PriorityMessage].derive(deriver.modifier[Priority](enumSuffix("_LEVEL")))
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message PriorityMessage {
+    Priority priority = 1;
+}
+
+enum Priority {
+    LOW__LEVEL = 0;
+    MEDIUM__LEVEL = 1;
+    HIGH__LEVEL = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
+      test("enumSuffix modifier works with AutoPrefixEnums flag") {
+        enum Status derives Schema { case Active, Inactive, Pending }
+        case class StatusMessage(status: Status) derives Schema
+
+        val codecWithExplicitSuffix = Schema[StatusMessage].derive(
+          deriverWithAutoPrefixEnums.modifier[Status](enumSuffix("_STATE"))
+        )
+
+        val rendered = renderCodec(codecWithExplicitSuffix)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message StatusMessage {
+    Status status = 1;
+}
+
+enum Status {
+    STATUS_ACTIVE__STATE = 0;
+    STATUS_INACTIVE__STATE = 1;
+    STATUS_PENDING__STATE = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
       test("enumPrefix modifier takes priority over AutoPrefixEnums flag") {
         enum Status derives Schema { case Active, Inactive, Pending }
         case class StatusMessage(status: Status) derives Schema
@@ -916,6 +965,34 @@ enum Status {
     USER_ACTIVE = 0;
     USER_INACTIVE = 1;
     USER_PENDING = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
+      test("enum prefix and suffix can be combined") {
+        enum Status derives Schema { case Active, Inactive, Pending }
+        case class StatusMessage(status: Status) derives Schema
+
+        val codecWithBoth = Schema[StatusMessage].derive(
+          deriver
+            .modifier[Status](enumPrefix("USER"))
+            .modifier[Status](enumSuffix("_FLAG"))
+        )
+
+        val rendered = renderCodec(codecWithBoth)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message StatusMessage {
+    Status status = 1;
+}
+
+enum Status {
+    USER_ACTIVE__FLAG = 0;
+    USER_INACTIVE__FLAG = 1;
+    USER_PENDING__FLAG = 2;
 }
 """
 

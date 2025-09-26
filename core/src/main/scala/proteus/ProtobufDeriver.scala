@@ -215,7 +215,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         while (reservedIndexes.contains(index)) index += 1
         val a        = constructEnumCase(c).asInstanceOf[A]
         val prefix   = getEnumPrefix(modifiers, flags, typeName)
-        val enumName = getEnumMemberName(c.name, c.modifiers, prefix)
+        val suffix   = getEnumSuffix(modifiers, flags, typeName)
+        val enumName = getEnumMemberName(c.name, c.modifiers, prefix, suffix)
         builder += ProtobufCodec.EnumValue(enumName, index, a)
         index += 1
       }
@@ -436,10 +437,14 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
       .collectFirst { case Modifier.config(`renameModifier`, newName) => newName }
       .getOrElse(toSnakeCase(fieldName))
 
-  private def getEnumMemberName(memberName: String, modifiers: Seq[Modifier], enumPrefix: String): String =
+  private def getEnumMemberName(memberName: String, modifiers: Seq[Modifier], enumPrefix: String, enumSuffix: String): String =
     modifiers
       .collectFirst { case Modifier.config(`renameModifier`, newName) => newName }
-      .getOrElse(if (enumPrefix.nonEmpty) s"${enumPrefix.toUpperCase}_${toUpperSnakeCase(memberName)}" else toUpperSnakeCase(memberName))
+      .getOrElse {
+        val prefix = if (enumPrefix.nonEmpty) s"${enumPrefix.toUpperCase}_" else ""
+        val suffix = if (enumSuffix.nonEmpty) s"_${enumSuffix.toUpperCase}" else ""
+        s"$prefix${toUpperSnakeCase(memberName)}$suffix"
+      }
 
   private def getReservedIndexes(modifiers: Seq[Modifier]): Set[Int] =
     modifiers
@@ -450,6 +455,11 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     modifiers
       .collectFirst { case Modifier.config(`enumPrefixModifier`, prefix) => prefix }
       .getOrElse(if (flags.contains(DerivationFlag.AutoPrefixEnums)) typeNameToUpperSnakeCase(getTypeName(typeName, modifiers)) else "")
+
+  private def getEnumSuffix(modifiers: Seq[Modifier], flags: Set[DerivationFlag], typeName: TypeName[?]): String =
+    modifiers
+      .collectFirst { case Modifier.config(`enumSuffixModifier`, suffix) => suffix }
+      .getOrElse(if (flags.contains(DerivationFlag.AutoSuffixEnums)) typeNameToUpperSnakeCase(getTypeName(typeName, modifiers)) else "")
 
   private def getComment(modifiers: Seq[Modifier]): Option[String] =
     modifiers.collectFirst { case Modifier.config(`commentModifier`, value) => value }
@@ -538,6 +548,7 @@ object ProtobufDeriver extends ProtobufDeriver(Set.empty, Vector.empty, Vector.e
   enum DerivationFlag {
     case OptionalAsOneOf
     case AutoPrefixEnums
+    case AutoSuffixEnums
   }
 
   private case class TermInstance[F[_, _], A](term: Term[F, ?, A], instance: ProtobufCodec[A])
