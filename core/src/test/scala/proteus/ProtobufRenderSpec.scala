@@ -486,6 +486,80 @@ message ReservedMessage {
 
         assertTrue(rendered == expected)
       },
+      test("proteus reserved modifier forces a field number") {
+        case class ReservedMessage(id: Int, name: String, value: String, active: Boolean) derives Schema
+
+        val codec    = Schema[ReservedMessage].derive(deriver.modifier[ReservedMessage]("name", reserved(6)))
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message ReservedMessage {
+    int32 id = 1;
+    string value = 2;
+    bool active = 3;
+    string name = 6;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
+      test("proteus reserved modifier forces a enum case number") {
+        enum ReservedEnum derives Schema { case Name, Value, Active }
+
+        val codec    = Schema[ReservedEnum].derive(deriver.modifier[ReservedEnum]("Value", reserved(6)))
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+enum ReservedEnum {
+    NAME = 0;
+    ACTIVE = 1;
+    VALUE = 6;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
+      test("proteus reserved modifier forces a oneof field number") {
+        enum ReservedOneOf derives Schema {
+          case Name(name: String)
+          case Value(value: String)
+          case Active(value: String)
+        }
+
+        val codec    =
+          Schema[ReservedOneOf].derive(deriver.modifier[ReservedOneOf]("Value", reserved(6)))
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message ReservedOneOf {
+    oneof value {
+        Name name = 1;
+        Active active = 2;
+        Value value = 6;
+    }
+}
+
+message Name {
+    string name = 1;
+}
+
+message Value {
+    string value = 1;
+}
+
+message Active {
+    string value = 1;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
       test("proteus reserved modifier on inline oneOf field controls case indexes") {
         enum ContactType derives Schema {
           case Email(address: String)

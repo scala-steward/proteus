@@ -87,12 +87,11 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         Lazy
           .collectAll(fields.map(field => D.instance(field.value.metadata).map(TermInstance(field, _))).toVector)
           .map { fieldsWithInstances =>
-            val reservedIndexes      = getReservedIndexes(modifiers)
-            val fieldReservedIndexes = getReservedIndexes(fieldsWithInstances.flatMap(_.term.modifiers))
-            val allReservedIndexes   = reservedIndexes ++ fieldReservedIndexes
-            val nested               = modifiers.collectFirst { case Modifier.config(`nestedModifier`, _) => true }.getOrElse(false)
-            val builder              = Array.newBuilder[ProtobufCodec.MessageField[?]]
-            var id                   = 0
+            val reservedIndexes    = getReservedIndexes(modifiers)
+            val allReservedIndexes = reservedIndexes ++ getReservedIndexes(fieldsWithInstances.flatMap(_.term.modifiers))
+            val nested             = modifiers.collectFirst { case Modifier.config(`nestedModifier`, _) => true }.getOrElse(false)
+            val builder            = Array.newBuilder[ProtobufCodec.MessageField[?]]
+            var id                 = 0
 
             def getField[A](index: Int, field: TermInstance[F, A]): Unit =
               if (!field.term.modifiers.exists { case Modifier.config(`excludedModifier`, _) => true; case _ => false }) {
@@ -161,9 +160,14 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                       }
                     )
                   case instance                                                                                                             =>
-                    id += 1
-                    while (allReservedIndexes.contains(id)) id += 1
-                    builder += SimpleField(name, id, instance, register, getDefaultValue(using field.instance), getComment(field.term.modifiers))
+                    val fieldId = getReservedIndex(field.term.modifiers) match {
+                      case Some(reservedIndex) => reservedIndex
+                      case None                =>
+                        id += 1
+                        while (allReservedIndexes.contains(id)) id += 1
+                        id
+                    }
+                    builder += SimpleField(name, fieldId, instance, register, getDefaultValue(using field.instance), getComment(field.term.modifiers))
                 }
               }
 
@@ -207,18 +211,25 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
       D.instance(filteredCases.find(c => c.name == unitSome.name).get.value.asRecord.get.fields.head.value.metadata)
         .map(ProtobufCodec.Optional(_).asInstanceOf[ProtobufCodec[A]])
     else if (isEnum(filteredCases, modifiers)) {
-      val nested          = modifiers.collectFirst { case Modifier.config(`nestedModifier`, _) => true }.getOrElse(false)
-      val reservedIndexes = getReservedIndexes(modifiers).toList
-      val builder         = List.newBuilder[ProtobufCodec.EnumValue[A]]
-      var index           = 0
+      val nested             = modifiers.collectFirst { case Modifier.config(`nestedModifier`, _) => true }.getOrElse(false)
+      val reservedIndexes    = getReservedIndexes(modifiers).toList
+      val allReservedIndexes = reservedIndexes ++ filteredCases.flatMap(c => getReservedIndexes(c.modifiers).toList)
+      val builder            = List.newBuilder[ProtobufCodec.EnumValue[A]]
+      var index              = 0
       filteredCases.foreach { c =>
-        while (reservedIndexes.contains(index)) index += 1
-        val a        = constructEnumCase(c).asInstanceOf[A]
-        val prefix   = getEnumPrefix(modifiers, flags, typeName)
-        val suffix   = getEnumSuffix(modifiers, flags, typeName)
-        val enumName = getEnumMemberName(c.name, c.modifiers, prefix, suffix)
-        builder += ProtobufCodec.EnumValue(enumName, index, a)
-        index += 1
+        val fieldIndex = getReservedIndex(c.modifiers) match {
+          case Some(id) => id
+          case None     =>
+            while (allReservedIndexes.contains(index)) index += 1
+            val current = index
+            index += 1
+            current
+        }
+        val a          = constructEnumCase(c).asInstanceOf[A]
+        val prefix     = getEnumPrefix(modifiers, flags, typeName)
+        val suffix     = getEnumSuffix(modifiers, flags, typeName)
+        val enumName   = getEnumMemberName(c.name, c.modifiers, prefix, suffix)
+        builder += ProtobufCodec.EnumValue(enumName, fieldIndex, a)
       }
       Lazy(ProtobufCodec.Enum(getTypeName(typeName, modifiers), builder.result(), reservedIndexes, getComment(modifiers), nested = nested))
     } else {
@@ -227,23 +238,30 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
       val nestedOneOf   = modifiers.collectFirst { case Modifier.config(`oneOfModifier`, value) => value.contains("nested") }.getOrElse(false)
       val discriminator = binding.asInstanceOf[Binding.Variant[A]].discriminator
       Lazy.collectAll(filteredCases.map(c => D.instance(c.value.metadata).map(TermInstance(c, _))).toVector).map { casesWithInstances =>
-        val reservedIndexes = getReservedIndexes(modifiers)
-        val builder         = Array.newBuilder[ProtobufCodec.MessageField[?]]
-        var id              = 1
-        val register        = Register.Object(0)
+        val reservedIndexes    = getReservedIndexes(modifiers)
+        val allReservedIndexes = reservedIndexes ++ getReservedIndexes(casesWithInstances.flatMap(_.term.modifiers))
+        val builder            = Array.newBuilder[ProtobufCodec.MessageField[?]]
+        var id                 = 1
+        val register           = Register.Object(0)
         builder += OneofField(
           "value",
           casesWithInstances.zipWithIndex.map { case (c, index) =>
-            while (reservedIndexes.contains(id)) id += 1
-            val item = SimpleField(
+            val fieldId = getReservedIndex(c.term.modifiers) match {
+              case Some(reservedIndex) => reservedIndex
+              case None                =>
+                while (allReservedIndexes.contains(id)) id += 1
+                val current = id
+                id += 1
+                current
+            }
+            val item    = SimpleField(
               getFieldName(c.term.name, c.term.modifiers),
-              id,
+              fieldId,
               if (nestedOneOf) c.instance.makeNested else c.instance,
               register.asInstanceOf[Register[Any]],
               null,
               getComment(c.term.modifiers)
             )
-            id += 1
             item
           }.toArray,
           register.asInstanceOf[Register[Any]],
@@ -450,6 +468,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     modifiers
       .collectFirst { case Modifier.config(`reservedModifier`, value) => value.split(",").map(_.trim.toInt).toSet }
       .getOrElse(Set.empty)
+
+  private def getReservedIndex(modifiers: Seq[Modifier]): Option[Int] =
+    modifiers.collectFirst { case Modifier.config(`reservedModifier`, value) => value.toIntOption }.flatten
 
   private def getEnumPrefix(modifiers: Seq[Modifier], flags: Set[DerivationFlag], typeName: TypeName[?]): String =
     modifiers

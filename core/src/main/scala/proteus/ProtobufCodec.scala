@@ -178,7 +178,7 @@ object ProtobufCodec {
     def toProtoIR: ProtoIR.Enum =
       ProtoIR.Enum(
         name,
-        values.map(v => ProtoIR.EnumValue(v.name, v.index)).toList,
+        values.sortBy(_.index).map(v => ProtoIR.EnumValue(v.name, v.index)).toList,
         reserved = reserved.toList.sorted.map(ProtoIR.Reserved.Number(_)),
         comment = comment
       )
