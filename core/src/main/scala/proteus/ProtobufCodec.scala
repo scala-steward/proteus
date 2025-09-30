@@ -517,15 +517,15 @@ object ProtobufCodec {
     }
 
   def toProtoIR(codec: ProtobufCodec[?]): List[ProtoIR.TopLevelDef] = {
-    val visited = new mutable.HashSet[String]()
+    val visited = new mutable.HashSet[ProtobufCodec[?]]()
 
     def findTopLevelDefs[A](codec: ProtobufCodec[A]): List[ProtoIR.TopLevelDef] =
       codec match {
         case c: Message[_]           =>
-          if (visited.contains(c.name)) Nil
+          if (visited.contains(c)) Nil
           else {
             if (!c.name.isEmpty) {
-              visited.add(c.name): Unit
+              visited.add(c): Unit
               if (c.nested) c.simpleFields.map(_.codec).flatMap(findTopLevelDefs)
               else ProtoIR.TopLevelDef.MessageDef(c.toProtoIR) :: c.simpleFields.map(_.codec).flatMap(findTopLevelDefs)
             } else c.simpleFields.map(_.codec).flatMap(findTopLevelDefs)
@@ -536,9 +536,9 @@ object ProtobufCodec {
         case c: RepeatedMap[_, _, _] => findTopLevelDefs(c.element)
         case c: RecursiveMessage[_]  => findTopLevelDefs(c.codec)
         case c: Enum[_]              =>
-          if (visited.contains(c.name)) Nil
+          if (visited.contains(c)) Nil
           else {
-            visited.add(c.name)
+            visited.add(c)
             if (c.nested) Nil else List(ProtoIR.TopLevelDef.EnumDef(c.toProtoIR))
           }
         case _                       => Nil
