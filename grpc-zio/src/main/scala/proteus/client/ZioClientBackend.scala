@@ -9,7 +9,7 @@ import zio.stream.*
 
 class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusException, *], ZStream[Any, StatusException, *]] {
   def client[Request, Response](service: Service[?], rpc: Rpc.Unary[Request, Response]): UIO[Request => IO[StatusException, Response]] = {
-    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     ZIO.succeed { req =>
       SafeMetadata.make.flatMap(headers => ClientCalls.unaryCall(channel, descriptor, CallOptions.DEFAULT, headers, req))
     }
@@ -18,7 +18,7 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     service: Service[?],
     rpc: Rpc.ClientStreaming[Request, Response]
   ): UIO[ZStream[Any, StatusException, Request] => IO[StatusException, Response]] = {
-    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     ZIO.succeed { req =>
       SafeMetadata.make.flatMap(headers => ClientCalls.clientStreamingCall(channel, descriptor, CallOptions.DEFAULT, headers, req))
     }
@@ -27,7 +27,7 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     service: Service[?],
     rpc: Rpc.ServerStreaming[Request, Response]
   ): UIO[Request => ZStream[Any, StatusException, Response]] = {
-    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     ZIO.succeed { req =>
       ZStream
         .fromZIO(SafeMetadata.make)
@@ -38,7 +38,7 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     service: Service[?],
     rpc: Rpc.BidiStreaming[Request, Response]
   ): UIO[ZStream[Any, StatusException, Request] => ZStream[Any, StatusException, Response]] = {
-    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     ZIO.succeed { req =>
       ZStream
         .fromZIO(SafeMetadata.make)
@@ -50,7 +50,7 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     service: Service[?],
     rpc: Rpc.Unary[Request, Response]
   ): UIO[(Request, Metadata) => IO[StatusException, (Response, Metadata)]] = {
-    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     ZIO.succeed { (req, ctx) =>
       SafeMetadata
         .fromMetadata(ctx)
@@ -64,7 +64,7 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     service: Service[?],
     rpc: Rpc.ClientStreaming[Request, Response]
   ): UIO[(ZStream[Any, StatusException, Request], Metadata) => IO[StatusException, (Response, Metadata)]] = {
-    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     ZIO.succeed { (req, ctx) =>
       SafeMetadata
         .fromMetadata(ctx)
@@ -80,7 +80,7 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     service: Service[?],
     rpc: Rpc.ServerStreaming[Request, Response]
   ): UIO[(Request, Metadata) => ZStream[Any, StatusException, Response]] = {
-    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     ZIO.succeed { (req, ctx) =>
       ZStream
         .fromZIO(SafeMetadata.fromMetadata(ctx))
@@ -92,7 +92,7 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     service: Service[?],
     rpc: Rpc.BidiStreaming[Request, Response]
   ): UIO[(ZStream[Any, StatusException, Request], Metadata) => ZStream[Any, StatusException, Response]] = {
-    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val descriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     ZIO.succeed { (req, ctx) =>
       ZStream
         .fromZIO(SafeMetadata.fromMetadata(ctx))

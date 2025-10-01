@@ -10,7 +10,7 @@ import io.grpc.stub.*
 
 class FutureClientBackend(channel: Channel) extends ClientBackendUnary[Future] {
   def client[Request, Response](service: Service[?], rpc: Rpc.Unary[Request, Response]): Future[Request => Future[Response]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     Future.successful { request =>
       val promise = Promise[Response]()
       val call    = channel.newCall(methodDescriptor, CallOptions.DEFAULT)
@@ -34,7 +34,7 @@ class FutureClientBackend(channel: Channel) extends ClientBackendUnary[Future] {
     service: Service[?],
     rpc: Rpc.Unary[Request, Response]
   ): Future[(Request, Metadata) => Future[(Response, Metadata)]] = {
-    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor(Nil))
+    val methodDescriptor = rpc.toMethodDescriptor(service.name, service.packageName, service.fileDescriptor)
     Future.successful { (request, requestMetadata) =>
       val promise                  = Promise[(Response, Metadata)]()
       val responseHeaders          = new AtomicReference[Metadata]()

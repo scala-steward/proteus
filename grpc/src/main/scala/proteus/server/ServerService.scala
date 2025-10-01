@@ -6,8 +6,7 @@ import io.grpc.*
 import io.grpc.protobuf.ProtoFileDescriptorSupplier
 
 case class ServerService[Unary[_], Streaming[_], Context, Rpcs] private (
-  serverRpcs: List[ServerRpc[Unary, Streaming, Context, ?, ?]],
-  dependencies: List[Dependency] = Nil
+  serverRpcs: List[ServerRpc[Unary, Streaming, Context, ?, ?]]
 )(using val backend: ServerBackend[Unary, Streaming, Context]) {
   def rpc[Request, Response](
     rpc: Rpc.Unary[Request, Response],
@@ -57,12 +56,9 @@ case class ServerService[Unary[_], Streaming[_], Context, Rpcs] private (
   ): ServerService[Unary, Streaming, Context, Rpcs & rpc.type] =
     ServerService(serverRpcs :+ server.ServerRpc.BidiStreaming(rpc, logic(_, _)))
 
-  def dependsOn(dependencies: Dependency*): ServerService[Unary, Streaming, Context, Rpcs] =
-    copy(dependencies = this.dependencies ++ dependencies)
-
   def build(service: Service[Rpcs]): ServerServiceDefinition = {
     val rpcs                           = serverRpcs.sortBy(_.name)
-    val fileDescriptor: FileDescriptor = service.fileDescriptor(dependencies)
+    val fileDescriptor: FileDescriptor = service.fileDescriptor
 
     val methodDescriptors: List[MethodDescriptor[?, ?]] =
       rpcs.map(_.toMethodDescriptor(service.name, service.packageName, fileDescriptor))

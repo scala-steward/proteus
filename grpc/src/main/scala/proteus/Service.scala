@@ -25,7 +25,7 @@ case class Service[Rpcs] private (
 
   private val typeReferences = toProtoIR.flatMap(_.collectTypeReferences).toSet
 
-  def fileDescriptor(dependencies: List[Dependency]): FileDescriptor = {
+  val fileDescriptor: FileDescriptor = {
     val fileBuilder               = FileDescriptorProto.newBuilder().setName(s"${name.toLowerCase}.proto").setPackage(packageName.getOrElse(""))
     val allDependencies           = dependencies.toSet ++ dependencies.flatMap(_.allDependencies)
     val usedDependencies          = allDependencies.filter(_.hasAnyOf(typeReferences))
