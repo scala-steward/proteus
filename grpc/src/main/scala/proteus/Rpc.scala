@@ -31,8 +31,8 @@ sealed trait Rpc[Req, Resp](using requestCodec: ProtobufCodec[Req], responseCode
   val messagesToProtoIR: List[ProtoIR.TopLevelDef] =
     ProtobufCodec.toProtoIR(requestCodec) ++ ProtobufCodec.toProtoIR(responseCodec)
 
-  def toMethodDescriptor(serviceName: String, packageName: Option[String], fileDescriptor: FileDescriptor): MethodDescriptor[Request, Response] = {
-    val serviceDescriptor = fileDescriptor.findServiceByName(serviceName)
+  def toMethodDescriptor(service: Service[?]): MethodDescriptor[Request, Response] = {
+    val serviceDescriptor = service.fileDescriptor.findServiceByName(service.name)
     val methodDescriptor  = serviceDescriptor.findMethodByName(name)
 
     MethodDescriptor
@@ -43,14 +43,14 @@ sealed trait Rpc[Req, Resp](using requestCodec: ProtobufCodec[Req], responseCode
         case _: Rpc.ServerStreaming[?, ?] => MethodType.SERVER_STREAMING
         case _: Rpc.BidiStreaming[?, ?]   => MethodType.BIDI_STREAMING
       })
-      .setFullMethodName(MethodDescriptor.generateFullMethodName(packageName.fold(serviceName)(s => s"$s.$serviceName"), name))
+      .setFullMethodName(MethodDescriptor.generateFullMethodName(service.packageName.fold(service.name)(s => s"$s.${service.name}"), name))
       .setSampledToLocalTracing(true)
       .setRequestMarshaller(ProtobufMarshaller[Request])
       .setResponseMarshaller(ProtobufMarshaller[Response])
       .setSchemaDescriptor(new ProtoMethodDescriptorSupplier {
         def getMethodDescriptor: PbMethodDescriptor   = methodDescriptor
         def getServiceDescriptor: PbServiceDescriptor = serviceDescriptor
-        def getFileDescriptor: FileDescriptor         = fileDescriptor
+        def getFileDescriptor: FileDescriptor         = service.fileDescriptor
       })
       .build()
   }

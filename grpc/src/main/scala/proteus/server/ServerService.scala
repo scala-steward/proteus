@@ -57,11 +57,10 @@ case class ServerService[Unary[_], Streaming[_], Context, Rpcs] private (
     ServerService(serverRpcs :+ server.ServerRpc.BidiStreaming(rpc, logic(_, _)))
 
   def build(service: Service[Rpcs]): ServerServiceDefinition = {
-    val rpcs                           = serverRpcs.sortBy(_.name)
-    val fileDescriptor: FileDescriptor = service.fileDescriptor
+    val rpcs = serverRpcs.sortBy(_.name)
 
     val methodDescriptors: List[MethodDescriptor[?, ?]] =
-      rpcs.map(_.toMethodDescriptor(service.name, service.packageName, fileDescriptor))
+      rpcs.map(_.toMethodDescriptor(service))
 
     val serviceDescriptor: ServiceDescriptor =
       methodDescriptors
@@ -69,7 +68,7 @@ case class ServerService[Unary[_], Streaming[_], Context, Rpcs] private (
           ServiceDescriptor
             .newBuilder(service.fullyQualifiedName)
             .setSchemaDescriptor(new ProtoFileDescriptorSupplier {
-              def getFileDescriptor: FileDescriptor = fileDescriptor
+              def getFileDescriptor: FileDescriptor = service.fileDescriptor
             })
         )((builder, methodDescriptor) => builder.addMethod(methodDescriptor))
         .build()

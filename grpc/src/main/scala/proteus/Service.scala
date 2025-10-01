@@ -6,7 +6,7 @@ import java.nio.file.*
 import scala.collection.immutable.ListSet
 
 import com.google.protobuf.DescriptorProtos.*
-import com.google.protobuf.Descriptors.FileDescriptor
+import com.google.protobuf.Descriptors.{FileDescriptor, ServiceDescriptor}
 
 case class Service[Rpcs] private (
   packageName: Option[String],
@@ -42,6 +42,9 @@ case class Service[Rpcs] private (
     }
     FileDescriptor.buildFrom(fileBuilder.build(), dependencyFileDescriptors.toArray)
   }
+
+  val serviceDescriptor: ServiceDescriptor =
+    fileDescriptor.findServiceByName(name)
 
   def rpc[Request, Response](rpc: Rpc[Request, Response]): Service[Rpcs & rpc.type] =
     Service(packageName, name, rpcs :+ rpc, dependencies, comment)
