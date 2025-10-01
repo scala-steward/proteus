@@ -6,7 +6,7 @@ import java.nio.file.*
 import scala.collection.immutable.ListSet
 
 import com.google.protobuf.DescriptorProtos.*
-import com.google.protobuf.Descriptors.{FileDescriptor, ServiceDescriptor}
+import com.google.protobuf.Descriptors.FileDescriptor
 
 case class Service[Rpcs] private (
   packageName: Option[String],
@@ -25,7 +25,7 @@ case class Service[Rpcs] private (
 
   private val typeReferences = toProtoIR.flatMap(_.collectTypeReferences).toSet
 
-  val fileDescriptor: FileDescriptor = {
+  lazy val fileDescriptor: FileDescriptor = {
     val fileBuilder               = FileDescriptorProto.newBuilder().setName(s"${name.toLowerCase}.proto").setPackage(packageName.getOrElse(""))
     val allDependencies           = dependencies.toSet ++ dependencies.flatMap(_.allDependencies)
     val usedDependencies          = allDependencies.filter(_.hasAnyOf(typeReferences))
@@ -42,9 +42,6 @@ case class Service[Rpcs] private (
     }
     FileDescriptor.buildFrom(fileBuilder.build(), dependencyFileDescriptors.toArray)
   }
-
-  val serviceDescriptor: ServiceDescriptor =
-    fileDescriptor.findServiceByName(name)
 
   def rpc[Request, Response](rpc: Rpc[Request, Response]): Service[Rpcs & rpc.type] =
     Service(packageName, name, rpcs :+ rpc, dependencies, comment)
