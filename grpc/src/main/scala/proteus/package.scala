@@ -3,6 +3,8 @@ package proteus
 import com.google.protobuf.DescriptorProtos.*
 import com.google.protobuf.Descriptors.FileDescriptor
 
+import proteus.internal.*
+
 extension (protoType: ProtoIR.Type) {
   def toDescriptorType: FieldDescriptorProto.Type =
     protoType match {
@@ -44,9 +46,9 @@ extension (field: ProtoIR.Field) {
       case mapType: ProtoIR.Type.MapType      =>
         fieldBuilder.setLabel(FieldDescriptorProto.Label.LABEL_REPEATED)
         fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_MESSAGE)
-        fieldBuilder.setTypeName(s"${field.name.capitalize}Entry")
+        fieldBuilder.setTypeName(s"${toCamelCase(field.name)}Entry")
         val mapEntryBuilder      =
-          DescriptorProto.newBuilder().setName(s"${field.name.capitalize}Entry").setOptions(MessageOptions.newBuilder().setMapEntry(true))
+          DescriptorProto.newBuilder().setName(s"${toCamelCase(field.name)}Entry").setOptions(MessageOptions.newBuilder().setMapEntry(true))
         val mapKeyFieldBuilder   = FieldDescriptorProto
           .newBuilder()
           .setName("key")
