@@ -373,7 +373,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                 offset,
                 Set.empty,
                 inline = false,
-                nested = false,
+                nested = true,
                 comment = None
               ),
               SeqConstructor.listConstructor,

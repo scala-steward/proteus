@@ -197,13 +197,13 @@ message MapMessage {
 package test;
 
 message MapMessage {
+    message KeyMessageIntEntry {
+        KeyMessage key = 1;
+        int32 value = 2;
+    }
+    
     int32 id = 1;
     repeated KeyMessageIntEntry data = 2;
-}
-
-message KeyMessageIntEntry {
-    KeyMessage key = 1;
-    int32 value = 2;
 }
 
 message KeyMessage {
@@ -222,12 +222,12 @@ message KeyMessage {
 package test;
 
 message MapWithOptionalValue {
+    message IntOptionIntEntry {
+        int32 key = 1;
+        optional int32 value = 2;
+    }
+    
     repeated IntOptionIntEntry map = 1;
-}
-
-message IntOptionIntEntry {
-    int32 key = 1;
-    optional int32 value = 2;
 }
 """
         assertTrue(rendered == expected)
