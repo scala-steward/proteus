@@ -563,9 +563,11 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
 
   private def isValidValueTypeForMap[A](codec: ProtobufCodec[A]): Boolean =
     codec match {
-      case _: ProtobufCodec.Optional[_]         => false // Optional values require repeated entry format
-      case ProtobufCodec.Transform(_, _, codec) => isValidValueTypeForMap(codec)
-      case _                                    => true
+      case _: ProtobufCodec.Optional[_]          => false // Optional values require repeated entry format
+      case _: ProtobufCodec.Repeated[_, _]       => false // Repeated values require repeated entry format
+      case _: ProtobufCodec.RepeatedMap[_, _, _] => false // Map values require repeated entry format
+      case ProtobufCodec.Transform(_, _, codec)  => isValidValueTypeForMap(codec)
+      case _                                     => true
     }
 
   private val unitOption = TypeName.option(TypeName.unit)
