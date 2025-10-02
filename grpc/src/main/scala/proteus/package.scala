@@ -146,7 +146,10 @@ extension (dependency: Dependency) {
   def fileDescriptor: Option[FileDescriptor] =
     if (dependency.types.nonEmpty) {
       val sharedFileBuilder =
-        FileDescriptorProto.newBuilder().setName(s"${dependency.dependencyName}").setPackage(dependency.packageName.getOrElse(""))
+        FileDescriptorProto
+          .newBuilder()
+          .setName(s"${dependency.path.fold("")(_ + "/")}${dependency.dependencyName}")
+          .setPackage(dependency.packageName.getOrElse(""))
       dependency.types.foreach {
         case ProtoIR.TopLevelDef.MessageDef(msg)  =>
           sharedFileBuilder.addMessageType(msg.toDescriptor(dependency.packageName.fold("")(_ + ".") + msg.name, dependency.topLevelFqns))
