@@ -17,13 +17,13 @@ case class Service[Rpcs] private (
 ) {
   val fullyQualifiedName: String = packageName.fold(name)(s => s"$s.$name")
 
-  val toProtoIR: List[ProtoIR.TopLevelDef] =
+  lazy val toProtoIR: List[ProtoIR.TopLevelDef] =
     (ProtoIR.TopLevelDef.ServiceDef(ProtoIR.Service(name, rpcs.map(_.toProtoIR), comment)) ::
       rpcs.flatMap(_.messagesToProtoIR)).distinct
 
   val allDependencies: Set[Dependency] = dependencies.toSet ++ dependencies.flatMap(_.allDependencies)
 
-  private val typeReferences = toProtoIR.flatMap(_.collectTypeReferences).toSet
+  private lazy val typeReferences = toProtoIR.flatMap(_.collectTypeReferences).toSet
 
   lazy val fileDescriptor: FileDescriptor = {
     val fileBuilder               = FileDescriptorProto.newBuilder().setName(s"${name.toLowerCase}.proto").setPackage(packageName.getOrElse(""))

@@ -5,14 +5,16 @@ import io.grpc.MethodDescriptor
 import io.grpc.MethodDescriptor.MethodType
 import io.grpc.protobuf.ProtoMethodDescriptorSupplier
 
-sealed trait Rpc[Req, Resp](using requestCodec: ProtobufCodec[Req], responseCodec: ProtobufCodec[Resp]) { self =>
+sealed trait Rpc[Req, Resp] { self =>
   type Request  = Req
   type Response = Resp
 
   val name: String
   val comment: Option[String]
+  given requestCodec: ProtobufCodec[Request]
+  given responseCodec: ProtobufCodec[Response]
 
-  val toProtoIR: ProtoIR.Rpc =
+  lazy val toProtoIR: ProtoIR.Rpc =
     ProtoIR.Rpc(
       name = name,
       request = ProtoIR.RpcMessage(ProtoIR.Fqn(None, requestCodec.getName.getOrElse(""))),
@@ -28,7 +30,7 @@ sealed trait Rpc[Req, Resp](using requestCodec: ProtobufCodec[Req], responseCode
       comment = comment
     )
 
-  val messagesToProtoIR: List[ProtoIR.TopLevelDef] =
+  lazy val messagesToProtoIR: List[ProtoIR.TopLevelDef] =
     ProtobufCodec.toProtoIR(requestCodec) ++ ProtobufCodec.toProtoIR(responseCodec)
 
   def toMethodDescriptor(service: Service[?]): MethodDescriptor[Request, Response] = {
@@ -58,63 +60,75 @@ sealed trait Rpc[Req, Resp](using requestCodec: ProtobufCodec[Req], responseCode
 
 object Rpc {
   case class Unary[Request, Response](name: String, comment: Option[String])(
-    using requestCodec: ProtobufCodec[Request],
-    responseCodec: ProtobufCodec[Response]
-  ) extends Rpc[Request, Response]
+    using _requestCodec: => ProtobufCodec[Request],
+    _responseCodec: => ProtobufCodec[Response]
+  ) extends Rpc[Request, Response] {
+    given requestCodec: ProtobufCodec[Request]   = _requestCodec
+    given responseCodec: ProtobufCodec[Response] = _responseCodec
+  }
   case class ClientStreaming[Request, Response](name: String, comment: Option[String])(
-    using requestCodec: ProtobufCodec[Request],
-    responseCodec: ProtobufCodec[Response]
-  ) extends Rpc[Request, Response]
+    using _requestCodec: => ProtobufCodec[Request],
+    _responseCodec: => ProtobufCodec[Response]
+  ) extends Rpc[Request, Response] {
+    given requestCodec: ProtobufCodec[Request]   = _requestCodec
+    given responseCodec: ProtobufCodec[Response] = _responseCodec
+  }
   case class ServerStreaming[Request, Response](name: String, comment: Option[String])(
-    using requestCodec: ProtobufCodec[Request],
-    responseCodec: ProtobufCodec[Response]
-  ) extends Rpc[Request, Response]
+    using _requestCodec: => ProtobufCodec[Request],
+    _responseCodec: => ProtobufCodec[Response]
+  ) extends Rpc[Request, Response] {
+    given requestCodec: ProtobufCodec[Request]   = _requestCodec
+    given responseCodec: ProtobufCodec[Response] = _responseCodec
+  }
   case class BidiStreaming[Request, Response](name: String, comment: Option[String])(
-    using requestCodec: ProtobufCodec[Request],
-    responseCodec: ProtobufCodec[Response]
-  ) extends Rpc[Request, Response]
+    using _requestCodec: => ProtobufCodec[Request],
+    _responseCodec: => ProtobufCodec[Response]
+  ) extends Rpc[Request, Response] {
+    given requestCodec: ProtobufCodec[Request]   = _requestCodec
+    given responseCodec: ProtobufCodec[Response] = _responseCodec
+  }
 
   def unary[Request, Response](
     name: String
-  )(using requestCodec: ProtobufCodec[Request], responseCodec: ProtobufCodec[Response]): Unary[Request, Response] =
+  )(using requestCodec: => ProtobufCodec[Request], responseCodec: => ProtobufCodec[Response]): Unary[Request, Response] =
     Unary(name, None)(using requestCodec, responseCodec)
 
   def unary[Request, Response](name: String, comment: String)(
-    using requestCodec: ProtobufCodec[Request],
-    responseCodec: ProtobufCodec[Response]
+    using requestCodec: => ProtobufCodec[Request],
+    responseCodec: => ProtobufCodec[Response]
   ): Unary[Request, Response] =
     Unary(name, Some(comment))(using requestCodec, responseCodec)
 
   def clientStreaming[Request, Response](
     name: String
-  )(using requestCodec: ProtobufCodec[Request], responseCodec: ProtobufCodec[Response]): ClientStreaming[Request, Response] =
+  )(using requestCodec: => ProtobufCodec[Request], responseCodec: => ProtobufCodec[Response]): ClientStreaming[Request, Response] =
     ClientStreaming(name, None)(using requestCodec, responseCodec)
 
   def clientStreaming[Request, Response](name: String, comment: String)(
-    using requestCodec: ProtobufCodec[Request],
-    responseCodec: ProtobufCodec[Response]
+    using requestCodec: => ProtobufCodec[Request],
+    responseCodec: => ProtobufCodec[Response]
   ): ClientStreaming[Request, Response] =
     ClientStreaming(name, Some(comment))(using requestCodec, responseCodec)
 
   def serverStreaming[Request, Response](
     name: String
-  )(using requestCodec: ProtobufCodec[Request], responseCodec: ProtobufCodec[Response]): ServerStreaming[Request, Response] =
+  )(using requestCodec: => ProtobufCodec[Request], responseCodec: => ProtobufCodec[Response]): ServerStreaming[Request, Response] =
     ServerStreaming(name, None)(using requestCodec, responseCodec)
 
   def serverStreaming[Request, Response](name: String, comment: String)(
-    using requestCodec: ProtobufCodec[Request],
-    responseCodec: ProtobufCodec[Response]
+    using requestCodec: => ProtobufCodec[Request],
+    responseCodec: => ProtobufCodec[Response]
   ): ServerStreaming[Request, Response] =
     ServerStreaming(name, Some(comment))(using requestCodec, responseCodec)
 
   def bidiStreaming[Request, Response](
     name: String
-  )(using requestCodec: ProtobufCodec[Request], responseCodec: ProtobufCodec[Response]): BidiStreaming[Request, Response] =
+  )(using requestCodec: => ProtobufCodec[Request], responseCodec: => ProtobufCodec[Response]): BidiStreaming[Request, Response] =
     BidiStreaming(name, None)(using requestCodec, responseCodec)
 
   def bidiStreaming[Request, Response](name: String, comment: String)(
-    using requestCodec: ProtobufCodec[Request],
-    responseCodec: ProtobufCodec[Response]
+    using requestCodec: => ProtobufCodec[Request],
+    responseCodec: => ProtobufCodec[Response]
   ): BidiStreaming[Request, Response] =
     BidiStreaming(name, Some(comment))(using requestCodec, responseCodec)
 }
