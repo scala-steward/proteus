@@ -235,7 +235,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
     } else {
       val nested        = modifiers.collectFirst { case Modifier.config(`nestedModifier`, _) => true }.getOrElse(false)
       val inlineOneOf   = modifiers.collectFirst { case Modifier.config(`oneOfModifier`, value) => value.contains("inline") }.getOrElse(false)
-      val nestedOneOf   = modifiers.collectFirst { case Modifier.config(`oneOfModifier`, value) => value.contains("nested") }.getOrElse(false)
+      val nestedOneOf   = modifiers
+        .collectFirst { case Modifier.config(`oneOfModifier`, value) => value.contains("nested") }
+        .getOrElse(flags.contains(DerivationFlag.NestedOneOf))
       val discriminator = binding.asInstanceOf[Binding.Variant[A]].discriminator
       Lazy.collectAll(filteredCases.map(c => D.instance(c.value.metadata).map(TermInstance(c, _))).toVector).map { casesWithInstances =>
         val reservedIndexes    = getReservedIndexes(modifiers)
@@ -579,6 +581,7 @@ object ProtobufDeriver extends ProtobufDeriver(Set.empty, Vector.empty, Vector.e
     case OptionalAsOneOf
     case AutoPrefixEnums
     case AutoSuffixEnums
+    case NestedOneOf
   }
 
   private case class TermInstance[F[_, _], A](term: Term[F, ?, A], instance: ProtobufCodec[A])

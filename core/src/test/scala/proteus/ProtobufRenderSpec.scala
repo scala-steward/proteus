@@ -12,6 +12,7 @@ object ProtobufRenderSpec extends ZIOSpecDefault {
   val deriver                    = ProtobufDeriver
   val deriverWithOptionalAsOneOf = deriver.enable(ProtobufDeriver.DerivationFlag.OptionalAsOneOf)
   val deriverWithAutoPrefixEnums = deriver.enable(ProtobufDeriver.DerivationFlag.AutoPrefixEnums)
+  val deriverWithNestedOneOf     = deriver.enable(ProtobufDeriver.DerivationFlag.NestedOneOf)
 
   def renderCodec[A](codec: ProtobufCodec[A], packageName: String = "test"): String = {
     val topLevelDefs    = ProtobufCodec.toProtoIR(codec)
@@ -898,6 +899,72 @@ message Empty {}
 
         assertTrue(standardRendered == expectedStandard) &&
           assertTrue(oneOfRendered == expectedOneOf)
+      },
+      test("NestedOneOf flag creates nested messages for enum variants") {
+        enum Contact derives Schema {
+          case Email(address: String)
+          case Phone(number: String, country: String)
+        }
+        case class ContactMessage(contact: Contact) derives Schema
+
+        val standardCodec = Schema[ContactMessage].derive(deriver)
+        val nestedCodec   = Schema[ContactMessage].derive(deriverWithNestedOneOf)
+
+        val standardRendered = renderCodec(standardCodec)
+        val nestedRendered   = renderCodec(nestedCodec)
+
+        val expectedStandard = """syntax = "proto3";
+
+package test;
+
+message ContactMessage {
+    Contact contact = 1;
+}
+
+message Contact {
+    oneof value {
+        Email email = 1;
+        Phone phone = 2;
+    }
+}
+
+message Email {
+    string address = 1;
+}
+
+message Phone {
+    string number = 1;
+    string country = 2;
+}
+"""
+
+        val expectedNested = """syntax = "proto3";
+
+package test;
+
+message ContactMessage {
+    Contact contact = 1;
+}
+
+message Contact {
+    message Email {
+        string address = 1;
+    }
+    
+    message Phone {
+        string number = 1;
+        string country = 2;
+    }
+    
+    oneof value {
+        Email email = 1;
+        Phone phone = 2;
+    }
+}
+"""
+
+        assertTrue(standardRendered == expectedStandard) &&
+          assertTrue(nestedRendered == expectedNested)
       },
       test("AutoPrefixEnums flag adds type name as prefix to enum members") {
         enum Status derives Schema { case Active, Inactive, Pending }
