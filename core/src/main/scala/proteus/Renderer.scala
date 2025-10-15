@@ -106,18 +106,20 @@ object Renderer {
       )
     }
 
-    def renderField(field: Field, isOneof: Boolean = false): Text = {
-      val ty         = renderType(field.ty)
-      val deprecated = if (field.deprecated) " [deprecated = true]" else ""
-      val optional   = field.ty match {
-        case _: Type.PrimitiveType | _: Type.EnumRefType | _: Type.RefType =>
-          if (field.optional && !isOneof) "optional " else ""
-        case _: Type.ListType | _: Type.MapType                            =>
-          ""
+    def renderField(field: Field, isOneof: Boolean = false): Text =
+      if (field == ProtoIR.excludedField) many()
+      else {
+        val ty         = renderType(field.ty)
+        val deprecated = if (field.deprecated) " [deprecated = true]" else ""
+        val optional   = field.ty match {
+          case _: Type.PrimitiveType | _: Type.EnumRefType | _: Type.RefType =>
+            if (field.optional && !isOneof) "optional " else ""
+          case _: Type.ListType | _: Type.MapType                            =>
+            ""
+        }
+        val comment    = field.comment.map(c => s" // $c").getOrElse("")
+        line(s"$optional$ty ${field.name} = ${field.number}$deprecated;$comment")
       }
-      val comment    = field.comment.map(c => s" // $c").getOrElse("")
-      line(s"$optional$ty ${field.name} = ${field.number}$deprecated;$comment")
-    }
 
     def renderService(service: Service): Text = {
       val commentLine = service.comment.map(c => line(s"// $c")).getOrElse(many())

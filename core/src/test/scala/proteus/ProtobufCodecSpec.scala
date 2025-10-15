@@ -638,6 +638,19 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
         // The encoded messages should be identical since excluded variant case is not present
         assert(encodedWithExcluded)(equalTo(encodedWithoutExcluded))
+      },
+      test("proteus excluded modifier with Map field allows decoding with default value") {
+        case class MessageWithExcludedMap(id: Int, name: String, metadata: Map[String, String]) derives Schema
+
+        val codec    = Schema[MessageWithExcludedMap].derive(deriver.modifier[MessageWithExcludedMap]("metadata", excluded))
+        val original = MessageWithExcludedMap(123, "test", Map("key1" -> "value1", "key2" -> "value2"))
+
+        val encoded = codec.encode(original)
+        val decoded = codec.decode(encoded)
+
+        assert(decoded.id)(equalTo(123)) &&
+          assert(decoded.name)(equalTo("test")) &&
+          assert(decoded.metadata)(equalTo(Map.empty[String, String]))
       }
     ),
     suite("Bytes Primitive")(

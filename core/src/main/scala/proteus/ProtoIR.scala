@@ -58,6 +58,8 @@ object ProtoIR {
 
   final case class Field(ty: Type, name: String, number: Int, deprecated: Boolean = false, optional: Boolean = false, comment: Option[String] = None)
 
+  val excludedField: Field = Field(Type.Bool, "", 0, deprecated = false, optional = false)
+
   sealed trait Reserved
   object Reserved {
     final case class Number(number: Int)         extends Reserved

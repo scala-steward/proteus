@@ -47,14 +47,17 @@ implicit def jsonWriterCodec[A](using codec: ProtobufCodec[A], registry: Registr
                   var i          = 0
                   while (i < c.fields.length) {
                     val field = c.fields(i) match {
-                      case f: SimpleField[?] => f
-                      case f: OneofField[b]  =>
+                      case f: SimpleField[?]   => Some(f)
+                      case f: OneofField[b]    =>
                         val v = getFromRegister(registers, offset, f.register).asInstanceOf[b]
-                        f.cases(f.discriminator.discriminate(v))
+                        Some(f.cases(f.discriminator.discriminate(v)))
+                      case _: ExcludedField[?] => None
                     }
-                    builder +=
-                      toCamelCase(field.name) ->
-                        loop(getFromRegister(registers, offset, field.register).asInstanceOf[field.codec.Focus], field.codec, nextOffset)
+                    field.foreach { f =>
+                      builder +=
+                        toCamelCase(f.name) ->
+                          loop(getFromRegister(registers, offset, f.register).asInstanceOf[f.codec.Focus], f.codec, nextOffset)
+                    }
                     i += 1
                   }
                   Json.obj(builder.result()*)

@@ -169,7 +169,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                     }
                     builder += SimpleField(name, fieldId, instance, register, getDefaultValue(using field.instance), getComment(field.term.modifiers))
                 }
-              }
+              } else builder += ExcludedField(registers(index), getDefaultValue(using field.instance))
 
             var idx   = 0
             val len   = fields.length
@@ -517,11 +517,15 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         boundary {
           val registers = Registers(constructor.usedRegisters)
           fields.foreach {
-            case field: SimpleField[?] =>
+            case field: SimpleField[?]   =>
               val defaultValue = getDefaultValue(using field.codec)
               if (defaultValue == null) break(null.asInstanceOf[A])
               setToRegister(registers, RegisterOffset.Zero, field.register, defaultValue)
-            case _: OneofField[?]      =>
+            case _: OneofField[?]        =>
+            case field: ExcludedField[?] =>
+              val defaultValue = field.defaultValue
+              if (defaultValue == null) break(null.asInstanceOf[A])
+              setToRegister(registers, RegisterOffset.Zero, field.register, defaultValue)
           }
           constructor.construct(registers, RegisterOffset.Zero)
         }

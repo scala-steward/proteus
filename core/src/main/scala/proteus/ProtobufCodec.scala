@@ -137,6 +137,12 @@ object ProtobufCodec {
         ProtoIR.MessageElement.OneofElement(ProtoIR.Oneof(name, fields))
       }
     }
+
+    final case class ExcludedField[A](register: Register[Any], defaultValue: Any) extends MessageField[A] {
+      def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = null
+      def toProtoIR: ProtoIR.MessageElement.FieldElement                                                          =
+        ProtoIR.MessageElement.FieldElement(ProtoIR.excludedField)
+    }
   }
 
   final case class Primitive[A](primitiveType: PrimitiveType[A]) extends ProtobufCodec[A] {
@@ -198,12 +204,14 @@ object ProtobufCodec {
     comment: Option[String] = None
   ) extends ProtobufCodec[A] {
     val simpleFields: List[SimpleField[?]] = fields.toList.flatMap {
-      case f: SimpleField[?] => List(f)
-      case f: OneofField[?]  => f.cases.toList
+      case f: SimpleField[?]   => List(f)
+      case f: OneofField[?]    => f.cases.toList
+      case f: ExcludedField[?] => Nil
     }
     val fieldMap: FieldMap                 = FieldMap(HashMap.from(fields.zipWithIndex.flatMap {
-      case (f: SimpleField[?], idx) => List(f.id -> FieldMapEntry(f, idx))
-      case (f: OneofField[?], idx)  => f.cases.map(c => c.id -> FieldMapEntry(c, idx)).toList
+      case (f: SimpleField[?], idx)   => List(f.id -> FieldMapEntry(f, idx))
+      case (f: OneofField[?], idx)    => f.cases.map(c => c.id -> FieldMapEntry(c, idx)).toList
+      case (f: ExcludedField[?], idx) => Nil
     }))
     val mayUseBuilder: Boolean             = simpleFields.exists(_.mayUseBuilder)
 
@@ -356,8 +364,9 @@ object ProtobufCodec {
     while (i < visited.length) {
       if (!visited(i)) {
         m.fields(i) match {
-          case field: SimpleField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
-          case field: OneofField[?]  => setToRegister(registers, offset, field.register, null)
+          case field: SimpleField[?]   => setToRegister(registers, offset, field.register, field.defaultValue)
+          case field: OneofField[?]    => setToRegister(registers, offset, field.register, null)
+          case field: ExcludedField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
         }
       } else if (m.mayUseBuilder) {
         // unpacked repeated fields use a builder that we need to convert to the final object
