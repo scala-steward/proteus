@@ -7,10 +7,10 @@ import io.grpc.*
 import io.grpc.stub.*
 
 class DirectClientBackend(channel: Channel) extends ClientBackendUnary[[A] =>> A] {
-  def client[Request, Response](service: Service[?], rpc: Rpc.Unary[Request, Response], options: CallOptions): Request => Response =
+  def client[Request, Response](service: Service[?], rpc: Rpc.Unary[Request, Response], options: CallOptions => CallOptions): Request => Response =
     request => {
       val methodDescriptor = rpc.toMethodDescriptor(service)
-      val call             = channel.newCall(methodDescriptor, options)
+      val call             = channel.newCall(methodDescriptor, options(CallOptions.DEFAULT))
       try
         ClientCalls.blockingUnaryCall(call, request)
       catch {
@@ -22,7 +22,7 @@ class DirectClientBackend(channel: Channel) extends ClientBackendUnary[[A] =>> A
   def clientWithMetadata[Request, Response](
     service: Service[?],
     rpc: Rpc.Unary[Request, Response],
-    options: CallOptions
+    options: CallOptions => CallOptions
   ): (Request, Metadata) => (Response, Metadata) = { (request, requestMetadata) =>
     val methodDescriptor         = rpc.toMethodDescriptor(service)
     val responseHeaders          = new AtomicReference[Metadata]()
@@ -32,7 +32,7 @@ class DirectClientBackend(channel: Channel) extends ClientBackendUnary[[A] =>> A
     val metadataAttachingChannel = ClientInterceptors.intercept(interceptedChannel, MetadataUtils.newAttachHeadersInterceptor(requestMetadata))
 
     try {
-      val call             = metadataAttachingChannel.newCall(methodDescriptor, options)
+      val call             = metadataAttachingChannel.newCall(methodDescriptor, options(CallOptions.DEFAULT))
       val response         = ClientCalls.blockingUnaryCall(call, request)
       val combinedMetadata = new Metadata()
       Option(responseHeaders.get()).foreach(combinedMetadata.merge)
