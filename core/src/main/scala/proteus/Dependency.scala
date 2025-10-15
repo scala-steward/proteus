@@ -20,7 +20,7 @@ case class Dependency(
   val filteredTypes        = types -- dependencyTypes
 
   val topLevelFqns: Map[String, String] =
-    (dependencies.flatMap(_.topLevelFqns) ++ types.map(t => (t.name, packageName.fold("")(_ + ".") + t.name))).toMap
+    (allDependencies.flatMap(_.topLevelFqns) ++ types.map(t => (t.name, packageName.fold("")(_ + ".") + t.name))).toMap
 
   val toImportStatement: ProtoIR.Statement.ImportStatement =
     ProtoIR.Statement.ImportStatement(s"${path.fold("")(_ + "/")}$dependencyName.proto")
