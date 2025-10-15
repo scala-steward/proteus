@@ -94,17 +94,22 @@ extension (msg: ProtoIR.Message) {
   def toDescriptor(fqn: String, topLevelFqns: Map[String, String]): DescriptorProto = {
     val builder = DescriptorProto.newBuilder().setName(msg.name)
 
+    val nestedTypeNames = msg.elements.collect {
+      case ProtoIR.MessageElement.NestedMessageElement(nestedMessage) => nestedMessage.name
+      case ProtoIR.MessageElement.NestedEnumElement(nestedEnum)       => nestedEnum.name
+    }.toSet
+
+    val augmentedFqns = topLevelFqns ++ nestedTypeNames.map(name => (name, s"$fqn.$name"))
+
     msg.elements.foreach {
       case ProtoIR.MessageElement.FieldElement(field)                 =>
-        field.addToDescriptor(builder, None, fqn, topLevelFqns)
+        field.addToDescriptor(builder, None, fqn, augmentedFqns)
       case ProtoIR.MessageElement.OneofElement(oneof)                 =>
         builder.addOneofDecl(OneofDescriptorProto.newBuilder().setName(oneof.name).build())
         val oneofIndex = builder.getOneofDeclCount - 1
-        oneof.fields.foreach(_.addToDescriptor(builder, Some(oneofIndex), fqn, topLevelFqns))
+        oneof.fields.foreach(_.addToDescriptor(builder, Some(oneofIndex), fqn, augmentedFqns))
       case ProtoIR.MessageElement.NestedMessageElement(nestedMessage) =>
         builder.addNestedType(nestedMessage.toDescriptor(s"$fqn.${nestedMessage.name}", topLevelFqns))
-      case ProtoIR.MessageElement.EnumDefElement(nestedEnum)          =>
-        builder.addEnumType(nestedEnum.toDescriptor)
       case ProtoIR.MessageElement.NestedEnumElement(nestedEnum)       =>
         builder.addEnumType(nestedEnum.toDescriptor)
     }

@@ -79,7 +79,6 @@ object Renderer {
     def renderMessageElement(element: MessageElement): Text =
       element match {
         case MessageElement.FieldElement(field)           => renderField(field)
-        case MessageElement.EnumDefElement(enumDef)       => renderEnum(enumDef)
         case MessageElement.OneofElement(oneof)           => renderOneof(oneof)
         case MessageElement.NestedMessageElement(message) => many(renderMessage(message), emptyLine)
         case MessageElement.NestedEnumElement(enumDef)    => many(renderEnum(enumDef), emptyLine)

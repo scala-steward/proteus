@@ -43,9 +43,6 @@ object ProtoIR {
     final case class FieldElement(field: Field)             extends MessageElement {
       def collectTypeReferences: Set[String] = field.ty.collectTypeReferences
     }
-    final case class EnumDefElement(enumValue: Enum)        extends MessageElement {
-      def collectTypeReferences: Set[String] = Set.empty
-    }
     final case class OneofElement(oneof: Oneof)             extends MessageElement {
       def collectTypeReferences: Set[String] = oneof.fields.flatMap(_.ty.collectTypeReferences).toSet
     }
