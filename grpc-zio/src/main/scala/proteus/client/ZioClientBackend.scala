@@ -8,9 +8,9 @@ import zio.*
 import zio.stream.*
 
 class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusException, *], ZStream[Any, StatusException, *]] {
-  def client[Request, Response](
-    service: Service[?],
+  def client[Rpcs, Request, Response](
     rpc: Rpc.Unary[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): UIO[Request => IO[StatusException, Response]] = {
     val descriptor = rpc.toMethodDescriptor(service)
@@ -18,9 +18,9 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
       SafeMetadata.make.flatMap(headers => ClientCalls.unaryCall(channel, descriptor, options(CallOptions.DEFAULT), headers, req))
     }
   }
-  def client[Request, Response](
-    service: Service[?],
+  def client[Rpcs, Request, Response](
     rpc: Rpc.ClientStreaming[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): UIO[ZStream[Any, StatusException, Request] => IO[StatusException, Response]] = {
     val descriptor = rpc.toMethodDescriptor(service)
@@ -28,9 +28,9 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
       SafeMetadata.make.flatMap(headers => ClientCalls.clientStreamingCall(channel, descriptor, options(CallOptions.DEFAULT), headers, req))
     }
   }
-  def client[Request, Response](
-    service: Service[?],
+  def client[Rpcs, Request, Response](
     rpc: Rpc.ServerStreaming[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): UIO[Request => ZStream[Any, StatusException, Response]] = {
     val descriptor = rpc.toMethodDescriptor(service)
@@ -40,9 +40,9 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
         .flatMap(headers => ClientCalls.serverStreamingCall(channel, descriptor, options(CallOptions.DEFAULT), headers, req))
     }
   }
-  def client[Request, Response](
-    service: Service[?],
+  def client[Rpcs, Request, Response](
     rpc: Rpc.BidiStreaming[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): UIO[ZStream[Any, StatusException, Request] => ZStream[Any, StatusException, Response]] = {
     val descriptor = rpc.toMethodDescriptor(service)
@@ -53,9 +53,9 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     }
   }
 
-  def clientWithMetadata[Request, Response](
-    service: Service[?],
+  def clientWithMetadata[Rpcs, Request, Response](
     rpc: Rpc.Unary[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): UIO[(Request, Metadata) => IO[StatusException, (Response, Metadata)]] = {
     val descriptor = rpc.toMethodDescriptor(service)
@@ -70,9 +70,9 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     }
   }
 
-  def clientWithMetadata[Request, Response](
-    service: Service[?],
+  def clientWithMetadata[Rpcs, Request, Response](
     rpc: Rpc.ClientStreaming[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): UIO[(ZStream[Any, StatusException, Request], Metadata) => IO[StatusException, (Response, Metadata)]] = {
     val descriptor = rpc.toMethodDescriptor(service)
@@ -87,9 +87,9 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     }
   }
 
-  def clientWithMetadata[Request, Response](
-    service: Service[?],
+  def clientWithMetadata[Rpcs, Request, Response](
     rpc: Rpc.ServerStreaming[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): UIO[(Request, Metadata) => ZStream[Any, StatusException, Response]] = {
     val descriptor = rpc.toMethodDescriptor(service)
@@ -100,9 +100,9 @@ class ZioClientBackend(channel: ZChannel) extends ClientBackend[IO[StatusExcepti
     }
   }
 
-  def clientWithMetadata[Request, Response](
-    service: Service[?],
+  def clientWithMetadata[Rpcs, Request, Response](
     rpc: Rpc.BidiStreaming[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): UIO[(ZStream[Any, StatusException, Request], Metadata) => ZStream[Any, StatusException, Response]] = {
     val descriptor = rpc.toMethodDescriptor(service)

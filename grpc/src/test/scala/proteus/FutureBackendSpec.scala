@@ -37,7 +37,7 @@ object FutureBackendSpec extends ZIOSpecDefault {
       val port         = 8001
       val server       = NettyServerBuilder.forPort(port).addService(testServiceDef).build().start()
       val channel      = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-      val clientFuture = new FutureClientBackend(channel).client(testService, complexRpc)
+      val clientFuture = new FutureClientBackend(channel).client(complexRpc, testService)
       val client       = Await.result(clientFuture, 5.seconds)
 
       val testRequest = sampleRequest
@@ -58,7 +58,7 @@ object FutureBackendSpec extends ZIOSpecDefault {
       val port         = 8002
       val server       = NettyServerBuilder.forPort(port).addService(metadataServiceDef).build().start()
       val channel      = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-      val clientFuture = new FutureClientBackend(channel).clientWithMetadata(metadataService, metadataRpc)
+      val clientFuture = new FutureClientBackend(channel).clientWithMetadata(metadataRpc, metadataService)
       val client       = Await.result(clientFuture, 5.seconds)
 
       val requestMetadata = new Metadata()

@@ -9,9 +9,9 @@ import io.grpc.*
 import io.grpc.stub.*
 
 class FutureClientBackend(channel: Channel) extends ClientBackendUnary[Future] {
-  def client[Request, Response](
-    service: Service[?],
+  def client[Rpcs, Request, Response](
     rpc: Rpc.Unary[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): Future[Request => Future[Response]] = {
     val methodDescriptor = rpc.toMethodDescriptor(service)
@@ -34,9 +34,9 @@ class FutureClientBackend(channel: Channel) extends ClientBackendUnary[Future] {
     }
   }
 
-  def clientWithMetadata[Request, Response](
-    service: Service[?],
+  def clientWithMetadata[Rpcs, Request, Response](
     rpc: Rpc.Unary[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): Future[(Request, Metadata) => Future[(Response, Metadata)]] = {
     val methodDescriptor = rpc.toMethodDescriptor(service)

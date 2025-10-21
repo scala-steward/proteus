@@ -9,7 +9,7 @@ import proteus.client.DirectClientBackend
 class GreeterClient(host: String, port: Int) {
   val channel: ManagedChannel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
   val backend                 = DirectClientBackend(channel)
-  val sayHelloClient          = backend.client(greeterService, sayHelloRpc)
+  val sayHelloClient          = backend.client(sayHelloRpc, greeterService)
 
   def sayHello(name: String): HelloReply = {
     println(s"Client: SayHello($name)")

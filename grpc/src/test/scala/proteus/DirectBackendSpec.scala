@@ -28,7 +28,7 @@ object DirectBackendSpec extends ZIOSpecDefault {
       val port    = 9001
       val server  = NettyServerBuilder.forPort(port).addService(testServiceDef).build().start()
       val channel = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-      val client  = new DirectClientBackend(channel).client(testService, complexRpc)
+      val client  = new DirectClientBackend(channel).client(complexRpc, testService)
 
       val testRequest = sampleRequest
       val response    = client(testRequest)
@@ -48,7 +48,7 @@ object DirectBackendSpec extends ZIOSpecDefault {
       val port    = 9002
       val server  = NettyServerBuilder.forPort(port).addService(metadataServiceDef).build().start()
       val channel = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-      val client  = new DirectClientBackend(channel).clientWithMetadata(metadataService, metadataRpc)
+      val client  = new DirectClientBackend(channel).clientWithMetadata(metadataRpc, metadataService)
 
       val requestMetadata = new Metadata()
       requestMetadata.put(Metadata.Key.of("client-id", Metadata.ASCII_STRING_MARSHALLER), "test-client-123")

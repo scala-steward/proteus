@@ -22,7 +22,7 @@ class RouteGuideClient(host: String, port: Int) {
         channel <- channelResource
         zChannel = ZChannel(channel, Seq.empty)
         backend  = new ZioClientBackend(zChannel)
-        client  <- backend.client(routeGuideService, getFeatureRpc)
+        client  <- backend.client(getFeatureRpc, routeGuideService)
         result  <- client(point)
       } yield result
     }
@@ -33,7 +33,7 @@ class RouteGuideClient(host: String, port: Int) {
         channel  <- channelResource
         zChannel  = ZChannel(channel, Seq.empty)
         backend   = new ZioClientBackend(zChannel)
-        client   <- backend.client(routeGuideService, listFeaturesRpc)
+        client   <- backend.client(listFeaturesRpc, routeGuideService)
         features <- client(rectangle).runCollect
       } yield features.toList
     }
@@ -44,7 +44,7 @@ class RouteGuideClient(host: String, port: Int) {
         channel <- channelResource
         zChannel = ZChannel(channel, Seq.empty)
         backend  = new ZioClientBackend(zChannel)
-        client  <- backend.client(routeGuideService, recordRouteRpc)
+        client  <- backend.client(recordRouteRpc, routeGuideService)
         result  <- client(ZStream.fromIterable(points))
       } yield result
     }
@@ -62,7 +62,7 @@ class RouteGuideClient(host: String, port: Int) {
         channel   <- channelResource
         zChannel   = ZChannel(channel, Seq.empty)
         backend    = new ZioClientBackend(zChannel)
-        client    <- backend.client(routeGuideService, routeChatRpc)
+        client    <- backend.client(routeChatRpc, routeGuideService)
         responses <- client(ZStream.fromIterable(notes)).runCollect
       } yield responses.toList
     }

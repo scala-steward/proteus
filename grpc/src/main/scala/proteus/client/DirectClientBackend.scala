@@ -7,7 +7,11 @@ import io.grpc.*
 import io.grpc.stub.*
 
 class DirectClientBackend(channel: Channel) extends ClientBackendUnary[[A] =>> A] {
-  def client[Request, Response](service: Service[?], rpc: Rpc.Unary[Request, Response], options: CallOptions => CallOptions): Request => Response =
+  def client[Rpcs, Request, Response](
+    rpc: Rpc.Unary[Request, Response],
+    service: Service[Rpcs & rpc.type],
+    options: CallOptions => CallOptions
+  ): Request => Response =
     request => {
       val methodDescriptor = rpc.toMethodDescriptor(service)
       val call             = channel.newCall(methodDescriptor, options(CallOptions.DEFAULT))
@@ -19,9 +23,9 @@ class DirectClientBackend(channel: Channel) extends ClientBackendUnary[[A] =>> A
       }
     }
 
-  def clientWithMetadata[Request, Response](
-    service: Service[?],
+  def clientWithMetadata[Rpcs, Request, Response](
     rpc: Rpc.Unary[Request, Response],
+    service: Service[Rpcs & rpc.type],
     options: CallOptions => CallOptions
   ): (Request, Metadata) => (Response, Metadata) = { (request, requestMetadata) =>
     val methodDescriptor         = rpc.toMethodDescriptor(service)

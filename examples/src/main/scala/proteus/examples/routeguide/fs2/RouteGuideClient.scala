@@ -20,7 +20,7 @@ class RouteGuideClient(host: String, port: Int)(using dispatcher: Dispatcher[IO]
     channelResource.use { channel =>
       val backend = Fs2ClientBackend[IO](channel, dispatcher)
       for {
-        client <- backend.client(routeGuideService, getFeatureRpc)
+        client <- backend.client(getFeatureRpc, routeGuideService)
         result <- client(point)
       } yield result
     }
@@ -29,7 +29,7 @@ class RouteGuideClient(host: String, port: Int)(using dispatcher: Dispatcher[IO]
     channelResource.use { channel =>
       val backend = Fs2ClientBackend[IO](channel, dispatcher)
       for {
-        client   <- backend.client(routeGuideService, listFeaturesRpc)
+        client   <- backend.client(listFeaturesRpc, routeGuideService)
         features <- client(rectangle).compile.toList
       } yield features
     }
@@ -38,7 +38,7 @@ class RouteGuideClient(host: String, port: Int)(using dispatcher: Dispatcher[IO]
     channelResource.use { channel =>
       val backend = Fs2ClientBackend[IO](channel, dispatcher)
       for {
-        client <- backend.client(routeGuideService, recordRouteRpc)
+        client <- backend.client(recordRouteRpc, routeGuideService)
         result <- client(Stream.emits(points))
       } yield result
     }
@@ -54,7 +54,7 @@ class RouteGuideClient(host: String, port: Int)(using dispatcher: Dispatcher[IO]
     channelResource.use { channel =>
       val backend = Fs2ClientBackend[IO](channel, dispatcher)
       for {
-        client    <- backend.client(routeGuideService, routeChatRpc)
+        client    <- backend.client(routeChatRpc, routeGuideService)
         responses <- client(Stream.emits(notes)).compile.toList
       } yield responses
     }
