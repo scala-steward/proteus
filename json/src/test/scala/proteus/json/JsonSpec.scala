@@ -108,7 +108,7 @@ object JsonSpec extends ZIOSpecDefault {
         case class OptionalMessage(value: Option[String]) derives Schema, ProtobufCodec
         val instance = OptionalMessage(None)
         val result   = instance.asJson.noSpaces
-        assertTrue(result == """{"value":null}""")
+        assertTrue(result == """{}""")
       },
       test("toJson serializes optional Int") {
         case class OptionalIntMessage(value: Option[Int]) derives Schema, ProtobufCodec
@@ -119,7 +119,7 @@ object JsonSpec extends ZIOSpecDefault {
         val noneJson = none.asJson.noSpaces
 
         assertTrue(someJson == """{"value":42}""") &&
-          assertTrue(noneJson == """{"value":null}""")
+          assertTrue(noneJson == """{}""")
       }
     ),
     suite("Message Types")(
@@ -147,7 +147,7 @@ object JsonSpec extends ZIOSpecDefault {
         val withoutJson = withoutContact.asJson.noSpaces
 
         assertTrue(withJson == """{"name":"Alice","contact":{"email":"alice@test.com","phone":"123-456"}}""") &&
-          assertTrue(withoutJson == """{"name":"Bob","contact":null}""")
+          assertTrue(withoutJson == """{"name":"Bob"}""")
       }
     ),
     suite("Collection Types")(
@@ -292,13 +292,13 @@ object JsonSpec extends ZIOSpecDefault {
 
         assertTrue(result == """{"intVal":0,"stringVal":"","boolVal":false}""")
       },
-      test("toJson handles null values") {
+      test("toJson omits null values") {
         case class B(c: Int) derives Schema, ProtobufCodec
-        case class A(b: B) derives Schema, ProtobufCodec
-        val instance = A(null)
+        case class A(a: Int, b: B) derives Schema, ProtobufCodec
+        val instance = A(1, null)
         val result   = instance.asJson.noSpaces
 
-        assertTrue(result == """{"b":null}""")
+        assertTrue(result == """{"a":1}""")
       },
       test("toJson handles complex nested structure") {
         case class Address(street: String, city: String, zip: Option[String]) derives Schema, ProtobufCodec

@@ -62,7 +62,7 @@ implicit def jsonWriterCodec[A](using codec: ProtobufCodec[A], registry: Registr
                       }
                       i += 1
                     }
-                    Json.obj(builder.result()*)
+                    Json.obj(builder.result()*).dropNullValues
                   case c: Repeated[c, e]       =>
                     val it      = c.deconstructor.deconstruct[e](b)
                     val builder = List.newBuilder[Json]
