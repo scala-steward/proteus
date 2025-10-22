@@ -1,4 +1,4 @@
-package proteus.internal
+package proteus
 
 import scala.annotation.tailrec
 

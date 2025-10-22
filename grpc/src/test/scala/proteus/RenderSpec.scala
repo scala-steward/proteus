@@ -460,6 +460,32 @@ message ServiceResponse {
 """
 
         assertTrue(renderedProto == expected)
+      },
+      test("should detect conflicts when same type name has different definitions in service dependencies") {
+        case class DifferentUser1(id: Int, email: String) derives Schema
+        case class DifferentUser2(id: Int, age: Int) derives Schema
+
+        case class Request(user1: DifferentUser1, user2: DifferentUser2) derives Schema
+        case class Response() derives Schema
+
+        val deriver = ProtobufDeriver.modifier[DifferentUser1](Modifiers.rename("User")).modifier[DifferentUser2](Modifiers.rename("User"))
+
+        given ProtobufCodec[Request]  = Schema[Request].derive(deriver)
+        given ProtobufCodec[Response] = Schema[Response].derive(deriver)
+
+        val rpc     = Rpc.unary[Request, Response]("TestMethod")
+        val service = Service("TestService").rpc(rpc)
+
+        val error =
+          try {
+            service.render(options)
+            ""
+          } catch {
+            case e: Exception => e.getMessage
+          }
+
+        assertTrue(error.contains("Conflicts found in service TestService")) &&
+          assertTrue(error.contains("Type `User` is defined in different ways"))
       }
     ),
     suite("Dependency Rendering")(
@@ -831,6 +857,51 @@ message Address {
 """
 
         assertTrue(rendered == expected)
+      },
+      test("should detect conflicts when same type name has different definitions in dependencies") {
+        case class Status1(active: Boolean) derives Schema
+        case class Status2(code: Int, message: String) derives Schema
+
+        val deriver1 = ProtobufDeriver.modifier[Status1](Modifiers.rename("Status"))
+        val deriver2 = ProtobufDeriver.modifier[Status2](Modifiers.rename("Status"))
+
+        given ProtobufCodec[Status1] = Schema[Status1].derive(deriver1)
+        given ProtobufCodec[Status2] = Schema[Status2].derive(deriver2)
+
+        val dep = Dependency("dep").add[Status1].add[Status2]
+
+        val error =
+          try {
+            dep.render(options)
+            ""
+          } catch {
+            case e: Exception => e.getMessage
+          }
+
+        assertTrue(error.contains("Conflicts found in dependency dep")) &&
+          assertTrue(error.contains("Type `Status` is defined in different ways"))
+      },
+      test("should not detect conflicts when 2 types have the same name but compatible definitions") {
+        case class Status1(active: Boolean) derives Schema
+        case class Status2(active: Boolean) derives Schema
+
+        val deriver1 = ProtobufDeriver.modifier[Status1](Modifiers.rename("Status"))
+        val deriver2 = ProtobufDeriver.modifier[Status2](Modifiers.rename("Status"))
+
+        given ProtobufCodec[Status1] = Schema[Status1].derive(deriver1)
+        given ProtobufCodec[Status2] = Schema[Status2].derive(deriver2)
+
+        val dep = Dependency("dep").add[Status1].add[Status2]
+
+        val error =
+          try {
+            dep.render(options)
+            ""
+          } catch {
+            case e: Exception => e.getMessage
+          }
+
+        assertTrue(error == "")
       }
     )
   )

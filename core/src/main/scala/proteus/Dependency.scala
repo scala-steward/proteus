@@ -36,7 +36,13 @@ case class Dependency(
   def dependsOn(dependency: Dependency): Dependency =
     copy(types = types -- dependency.types -- dependency.dependencyTypes, dependencies = dependencies :+ dependency)
 
-  def render(options: List[ProtoIR.TopLevelOption]): String =
+  def render(options: List[ProtoIR.TopLevelOption]): String = {
+    val conflicts = findConflicts
+    if (conflicts.nonEmpty) {
+      throw new Exception(
+        s"Conflicts found in dependency $dependencyName:\n ${conflicts.map { case (name, defs) => s"- Type `$name` is defined in different ways: \n${defs.mkString("\n")}" }.mkString("\n")}\n"
+      )
+    }
     Renderer.render(
       ProtoIR.CompilationUnit(
         packageName = packageName,
@@ -45,6 +51,7 @@ case class Dependency(
           filteredTypes.map(ProtoIR.Statement.TopLevelStatement(_)).toList
       )
     )
+  }
 
   def renderToFile(options: List[ProtoIR.TopLevelOption], folder: String): Unit = {
     val rendered = render(options)
@@ -53,6 +60,14 @@ case class Dependency(
     Files.createDirectories(fullPath.getParent)
     Files.write(fullPath, rendered.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING): Unit
   }
+
+  def findConflicts: Map[String, List[String]] =
+    filteredTypes
+      .groupBy(_.name)
+      .view
+      .mapValues(_.map(Renderer.renderTopLevelDef).map(Text.renderText).toList.distinct)
+      .toMap
+      .filter((_, values) => values.length > 1)
 }
 
 object Dependency {

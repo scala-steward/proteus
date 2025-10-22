@@ -25,21 +25,20 @@ case class Service[Rpcs] private (
 
   private lazy val typeReferences = toProtoIR.flatMap(_.collectTypeReferences).toSet
 
+  private lazy val usedDependencies = allDependencies.filter(_.hasAnyOf(typeReferences))
+  private lazy val dependencyTypes  = usedDependencies.flatMap(_.types).map(_.name).toSet
+  private lazy val filteredTypes    = toProtoIR.filterNot(d => dependencyTypes.contains(d.name))
+
   lazy val fileDescriptor: FileDescriptor = {
     val fileBuilder               = FileDescriptorProto.newBuilder().setName(s"${name.toLowerCase}.proto").setPackage(packageName.getOrElse(""))
-    val allDependencies           = dependencies.toSet ++ dependencies.flatMap(_.allDependencies)
-    val usedDependencies          = allDependencies.filter(_.hasAnyOf(typeReferences))
     val dependencyFileDescriptors = usedDependencies.flatMap(_.fileDescriptor)
 
     dependencyFileDescriptors.foreach(fileDescriptor => fileBuilder.addDependency(fileDescriptor.getName))
 
-    val dependencyTypes = usedDependencies.flatMap(_.types).map(_.name).toSet
-
-    val types                             = toProtoIR.filterNot(d => dependencyTypes.contains(d.name))
     val topLevelFqns: Map[String, String] =
-      (usedDependencies.flatMap(_.topLevelFqns) ++ types.map(t => (t.name, packageName.fold("")(_ + ".") + t.name))).toMap
+      (usedDependencies.flatMap(_.topLevelFqns) ++ filteredTypes.map(t => (t.name, packageName.fold("")(_ + ".") + t.name))).toMap
 
-    types.foreach {
+    filteredTypes.foreach {
       case ProtoIR.TopLevelDef.MessageDef(msg)     =>
         fileBuilder.addMessageType(msg.toDescriptor(packageName.fold("")(_ + ".") + msg.name, topLevelFqns)): Unit
       case ProtoIR.TopLevelDef.EnumDef(enumDef)    => fileBuilder.addEnumType(enumDef.toDescriptor): Unit
@@ -55,15 +54,18 @@ case class Service[Rpcs] private (
     copy(dependencies = dependencies :+ dependency)
 
   def render(options: List[ProtoIR.TopLevelOption]): String = {
-    val filteredDependencies = allDependencies.filter(_.hasAnyOf(typeReferences))
-    val dependencyTypes      = filteredDependencies.flatMap(_.types).map(_.name).toSet
-    val filteredDefinitions  = toProtoIR.filterNot(d => dependencyTypes.contains(d.name))
+    val conflicts = findConflicts
+    if (conflicts.nonEmpty) {
+      throw new Exception(
+        s"Conflicts found in service $name:\n ${conflicts.map { case (name, defs) => s"- Type `$name` is defined in different ways: \n${defs.mkString("\n")}" }.mkString("\n")}\n"
+      )
+    }
     Renderer.render(
       ProtoIR.CompilationUnit(
         packageName = packageName,
         options = options,
-        statements = filteredDependencies.toList.map(_.toImportStatement) ++
-          filteredDefinitions.map(ProtoIR.Statement.TopLevelStatement(_))
+        statements = usedDependencies.toList.map(_.toImportStatement) ++
+          filteredTypes.map(ProtoIR.Statement.TopLevelStatement(_))
       )
     )
   }
@@ -77,6 +79,14 @@ case class Service[Rpcs] private (
 
   def renderToFile(options: List[ProtoIR.TopLevelOption], folder: String): Unit =
     renderToFile(options, folder, internal.toSnakeCase(name))
+
+  def findConflicts: Map[String, List[String]] =
+    filteredTypes
+      .groupBy(_.name)
+      .view
+      .mapValues(_.map(Renderer.renderTopLevelDef).map(Text.renderText).toList.distinct)
+      .toMap
+      .filter((_, values) => values.length > 1)
 }
 
 object Service {
