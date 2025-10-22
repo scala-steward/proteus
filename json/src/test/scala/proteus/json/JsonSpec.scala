@@ -292,6 +292,14 @@ object JsonSpec extends ZIOSpecDefault {
 
         assertTrue(result == """{"intVal":0,"stringVal":"","boolVal":false}""")
       },
+      test("toJson handles null values") {
+        case class B(c: Int) derives Schema, ProtobufCodec
+        case class A(b: B) derives Schema, ProtobufCodec
+        val instance = A(null)
+        val result   = instance.asJson.noSpaces
+
+        assertTrue(result == """{"b":null}""")
+      },
       test("toJson handles complex nested structure") {
         case class Address(street: String, city: String, zip: Option[String]) derives Schema, ProtobufCodec
         case class Contact(email: String, phones: List[String]) derives Schema, ProtobufCodec
