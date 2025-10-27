@@ -21,7 +21,13 @@ object Registry                                                   {
   val empty: Registry = Registry(Map.empty)
 }
 
-implicit def jsonWriterCodec[A](using codec: ProtobufCodec[A], registry: Registry): Encoder[A] =
+case class Options(formatMapEntriesAsKeyValuePairs: Boolean = false)
+
+object Options {
+  val default: Options = Options(formatMapEntriesAsKeyValuePairs = false)
+}
+
+implicit def jsonWriterCodec[A](using codec: ProtobufCodec[A], registry: Registry, options: Options): Encoder[A] =
   new Encoder[A] {
     def apply(a: A): Json =
       withRegisters { registers =>
@@ -78,7 +84,8 @@ implicit def jsonWriterCodec[A](using codec: ProtobufCodec[A], registry: Registr
                       val v     = it.next
                       val key   = loop(c.deconstructor.getKey(v), c.element.fields(0).asInstanceOf[SimpleField[?]].codec, offset)
                       val value = loop(c.deconstructor.getValue(v), c.element.fields(1).asInstanceOf[SimpleField[?]].codec, offset)
-                      builder += Json.obj(key.asString.getOrElse(key.noSpaces) -> value)
+                      if (options.formatMapEntriesAsKeyValuePairs) builder += Json.obj("key" -> key, "value" -> value)
+                      else builder += Json.obj(key.asString.getOrElse(key.noSpaces) -> value)
                     }
                     Json.arr(builder.result()*)
                   case Bytes                   => Json.fromString("<bytes>")

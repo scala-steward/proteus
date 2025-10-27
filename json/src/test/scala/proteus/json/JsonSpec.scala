@@ -12,6 +12,7 @@ import proteus.Modifiers.*
 object JsonSpec extends ZIOSpecDefault {
   given ProtobufDeriver = ProtobufDeriver
   given Registry        = Registry.empty
+  given Options         = Options.default
 
   def spec = suite("JsonSpec")(
     suite("Primitive Types")(
@@ -202,6 +203,39 @@ object JsonSpec extends ZIOSpecDefault {
         val instance = MapMessage(Map("price" -> Value(100, "USD")))
         val result   = instance.asJson.noSpaces
         assertTrue(result == """{"data":[{"price":{"amount":100,"currency":"USD"}}]}""")
+      },
+      test("toJson serializes Map with formatMapEntriesAsKeyValuePairs option") {
+        case class MapMessage(data: Map[String, Int]) derives Schema, ProtobufCodec
+        given Options = Options(formatMapEntriesAsKeyValuePairs = true)
+
+        val instance = MapMessage(Map("one" -> 1, "two" -> 2))
+        val result   = instance.asJson.noSpaces
+
+        assertTrue(
+          result == """{"data":[{"key":"one","value":1},{"key":"two","value":2}]}""" ||
+            result == """{"data":[{"key":"two","value":2},{"key":"one","value":1}]}"""
+        )
+      },
+      test("toJson serializes Map with non-string keys using formatMapEntriesAsKeyValuePairs") {
+        case class MapMessage(data: Map[Int, String]) derives Schema, ProtobufCodec
+        given Options = Options(formatMapEntriesAsKeyValuePairs = true)
+
+        val instance = MapMessage(Map(1 -> "one", 2 -> "two"))
+        val result   = instance.asJson.noSpaces
+
+        assertTrue(
+          result == """{"data":[{"key":1,"value":"one"},{"key":2,"value":"two"}]}""" ||
+            result == """{"data":[{"key":2,"value":"two"},{"key":1,"value":"one"}]}"""
+        )
+      },
+      test("toJson serializes empty Map with formatMapEntriesAsKeyValuePairs option") {
+        case class MapMessage(data: Map[String, Int]) derives Schema, ProtobufCodec
+        given Options = Options(formatMapEntriesAsKeyValuePairs = true)
+
+        val instance = MapMessage(Map.empty)
+        val result   = instance.asJson.noSpaces
+
+        assertTrue(result == """{"data":[]}""")
       }
     ),
     suite("Bytes and Binary Data")(
