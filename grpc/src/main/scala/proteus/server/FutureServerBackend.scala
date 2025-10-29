@@ -5,7 +5,7 @@ import scala.concurrent.Future
 
 import io.grpc.{Metadata, ServerCall, ServerCallHandler, Status}
 
-class FutureServerBackend[Context](interceptor: ServerInterceptor[Future, Future, RequestResponseMetadata, Context])
+class FutureServerBackend[Context](interceptor: ServerContextInterceptor[Future, Future, RequestResponseMetadata, Context])
   extends ServerBackend[Future, Future, Context] {
   def handler[Request, Response](
     rpc: ServerRpc[Future, Future, Context, Request, Response]
@@ -19,7 +19,10 @@ class FutureServerBackend[Context](interceptor: ServerInterceptor[Future, Future
               override def onMessage(message: Request): Unit = {
                 import scala.concurrent.ExecutionContext.Implicits.global
                 val responseMetadata = new Metadata()
-                val futureResponse   = interceptor.unary(ctx => logic(message, ctx))(RequestResponseMetadata(headers, responseMetadata))
+                val futureResponse   =
+                  interceptor.unary(message, ctx => logic(message, ctx))(using rpc.requestCodec, rpc.responseCodec)(
+                    RequestResponseMetadata(headers, responseMetadata)
+                  )
                 futureResponse.onComplete { result =>
                   result match {
                     case scala.util.Success(response) =>

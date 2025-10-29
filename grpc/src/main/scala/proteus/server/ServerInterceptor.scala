@@ -1,14 +1,41 @@
 package proteus.server
 
-trait ServerInterceptor[Unary[_], Streaming[_], InitialContext, Context] {
-  def unary[A](io: Context => Unary[A]): (InitialContext => Unary[A])
-  def stream[A](io: Context => Streaming[A]): (InitialContext => Streaming[A])
+import proteus.ProtobufCodec
+
+trait ServerInterceptor[InitialUnary[_], Unary[_], InitialStreaming[_], Streaming[_], InitialContext, Context] {
+  def unary[Req: ProtobufCodec, Resp: ProtobufCodec](request: Req, io: Context => Unary[Resp]): (InitialContext => InitialUnary[Resp])
+  def clientStreaming[Req: ProtobufCodec, Resp: ProtobufCodec](
+    io: Streaming[Req] => Context => Unary[Resp]
+  ): (InitialStreaming[Req] => InitialContext => InitialUnary[Resp])
+  def serverStreaming[Req: ProtobufCodec, Resp: ProtobufCodec](
+    request: Req,
+    io: Context => Streaming[Resp]
+  ): (InitialContext => InitialStreaming[Resp])
+  def bidiStreaming[Req: ProtobufCodec, Resp: ProtobufCodec](
+    io: Streaming[Req] => Context => Streaming[Resp]
+  ): (InitialStreaming[Req] => InitialContext => InitialStreaming[Resp])
+}
+
+trait ServerContextInterceptor[Unary[_], Streaming[_], InitialContext, Context]
+  extends ServerInterceptor[Unary, Unary, Streaming, Streaming, InitialContext, Context] {
+  def transformContext(context: InitialContext): Context
+  def unary[Req: ProtobufCodec, Resp: ProtobufCodec](request: Req, io: Context => Unary[Resp]): (InitialContext => Unary[Resp]) =
+    ctx => io(transformContext(ctx))
+  def clientStreaming[Req: ProtobufCodec, Resp: ProtobufCodec](
+    io: Streaming[Req] => Context => Unary[Resp]
+  ): (Streaming[Req] => InitialContext => Unary[Resp]) = stream => ctx => io(stream)(transformContext(ctx))
+  def serverStreaming[Req: ProtobufCodec, Resp: ProtobufCodec](
+    request: Req,
+    io: Context => Streaming[Resp]
+  ): (InitialContext => Streaming[Resp]) = ctx => io(transformContext(ctx))
+  def bidiStreaming[Req: ProtobufCodec, Resp: ProtobufCodec](
+    io: Streaming[Req] => Context => Streaming[Resp]
+  ): (Streaming[Req] => InitialContext => Streaming[Resp]) = stream => ctx => io(stream)(transformContext(ctx))
 }
 
 object ServerInterceptor {
-  def empty[Unary[_], Streaming[_], Context]: ServerInterceptor[Unary, Streaming, Context, Context] =
-    new ServerInterceptor[Unary, Streaming, Context, Context] {
-      def unary[A](io: Context => Unary[A]): (Context => Unary[A])          = io
-      def stream[A](io: Context => Streaming[A]): (Context => Streaming[A]) = io
+  def empty[Unary[_], Streaming[_], Context]: ServerContextInterceptor[Unary, Streaming, Context, Context] =
+    new ServerContextInterceptor[Unary, Streaming, Context, Context] {
+      def transformContext(context: Context): Context = context
     }
 }

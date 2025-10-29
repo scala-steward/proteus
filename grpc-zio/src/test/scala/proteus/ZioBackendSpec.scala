@@ -2,8 +2,7 @@ package proteus
 
 import java.util.concurrent.TimeUnit
 
-import io.grpc.Metadata
-import io.grpc.StatusException
+import io.grpc.{ServerInterceptor as _, *}
 import io.grpc.netty.{NettyChannelBuilder, NettyServerBuilder}
 import io.grpc.protobuf.services.ProtoReflectionServiceV1
 import scalapb.zio_grpc.{RequestContext, ZChannel}
@@ -13,7 +12,7 @@ import zio.test.*
 
 import proteus.GrpcTestUtils.*
 import proteus.client.ZioClientBackend
-import proteus.server.{ServerService, ZioServerBackend}
+import proteus.server.*
 
 object ZioBackendSpec extends ZIOSpecDefault {
 
@@ -217,6 +216,61 @@ object ZioBackendSpec extends ZIOSpecDefault {
           server.shutdown().awaitTermination(5, TimeUnit.SECONDS)
           channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
         }.ignore)
+    },
+    test("should handle server interceptor that changes the effect type") {
+      val backend       = ZioServerBackend(
+        new ServerInterceptor[
+          IO[StatusException, *],
+          IO[String, *],
+          ZStream[Any, StatusException, *],
+          ZStream[Any, String, *],
+          RequestContext,
+          RequestContext
+        ] {
+          def unary[Req: ProtobufCodec, Resp: ProtobufCodec](
+            request: Req,
+            io: RequestContext => IO[String, Resp]
+          ): (RequestContext => IO[StatusException, Resp]) =
+            ctx => io(ctx).mapError(error => Status.INTERNAL.withDescription(error).asException())
+          def clientStreaming[Req: ProtobufCodec, Resp: ProtobufCodec](
+            io: ZStream[Any, String, Req] => RequestContext => IO[String, Resp]
+          ): (ZStream[Any, StatusException, Req] => RequestContext => IO[StatusException, Resp]) =
+            stream => ctx => io(stream.mapError(_.getMessage))(ctx).mapError(error => Status.INTERNAL.withDescription(error).asException())
+          def serverStreaming[Req: ProtobufCodec, Resp: ProtobufCodec](
+            request: Req,
+            io: RequestContext => ZStream[Any, String, Resp]
+          ): (RequestContext => ZStream[Any, StatusException, Resp]) =
+            ctx => io(ctx).mapError(error => Status.INTERNAL.withDescription(error).asException())
+          def bidiStreaming[Req: ProtobufCodec, Resp: ProtobufCodec](
+            io: ZStream[Any, String, Req] => RequestContext => ZStream[Any, String, Resp]
+          ): (ZStream[Any, StatusException, Req] => RequestContext => ZStream[Any, StatusException, Resp]) =
+            stream => ctx => io(stream.mapError(_.getMessage))(ctx).mapError(error => Status.INTERNAL.withDescription(error).asException())
+        },
+        Runtime.default
+      )
+      val serverService = ServerService(using backend)
+        .rpc(complexRpc, _ => ZIO.fail("boom"))
+        .build(testService)
+
+      val port          = 7011
+      val server        = NettyServerBuilder.forPort(port).addService(serverService).build().start()
+      val channel       = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
+      val zChannel      = ZChannel(channel, Seq.empty)
+      val clientBackend = new ZioClientBackend(zChannel)
+
+      val program = for {
+        client <- clientBackend.client(complexRpc, testService)
+
+        response1 <- client(sampleRequest).either
+      } yield response1
+
+      program
+        .flatMap(result => assertTrue(result.left.map(_.getStatus().getDescription()) == Left("boom")))
+        .ensuring(ZIO.attempt {
+          server.shutdown().awaitTermination(5, TimeUnit.SECONDS)
+          channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
+        }.ignore)
+        .provide()
     }
   )
 }

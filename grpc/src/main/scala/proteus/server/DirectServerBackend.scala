@@ -3,11 +3,11 @@ package server
 
 import io.grpc.{Metadata, ServerCall, ServerCallHandler, Status}
 
-class DirectServerBackend[Context](interceptor: ServerInterceptor[[A] =>> A, [A] =>> A, RequestResponseMetadata, Context])
+class DirectServerBackend[Context](interceptor: ServerContextInterceptor[[A] =>> A, [A] =>> A, RequestResponseMetadata, Context])
   extends ServerBackend[[A] =>> A, [A] =>> A, Context] {
   def handler[Request, Response](rpc: ServerRpc[[A] =>> A, [A] =>> A, Context, Request, Response]): ServerCallHandler[Request, Response] =
     rpc match {
-      case server.ServerRpc.Unary(_, logic) =>
+      case server.ServerRpc.Unary(rpc, logic) =>
         new ServerCallHandler[Request, Response] {
           def startCall(call: ServerCall[Request, Response], headers: Metadata): ServerCall.Listener[Request] = {
             call.request(1)
@@ -15,7 +15,10 @@ class DirectServerBackend[Context](interceptor: ServerInterceptor[[A] =>> A, [A]
               override def onMessage(message: Request): Unit =
                 try {
                   val responseMetadata = new Metadata()
-                  val response         = interceptor.unary(ctx => logic(message, ctx))(RequestResponseMetadata(headers, responseMetadata))
+                  val response         =
+                    interceptor.unary(message, ctx => logic(message, ctx))(using rpc.requestCodec, rpc.responseCodec)(
+                      RequestResponseMetadata(headers, responseMetadata)
+                    )
                   call.sendHeaders(new Metadata())
                   call.sendMessage(response)
                   call.close(Status.OK, responseMetadata)
@@ -26,7 +29,7 @@ class DirectServerBackend[Context](interceptor: ServerInterceptor[[A] =>> A, [A]
             }
           }
         }
-      case _                                =>
+      case _                                  =>
         throw new UnsupportedOperationException("The direct backend only supports unary RPCs")
     }
 }

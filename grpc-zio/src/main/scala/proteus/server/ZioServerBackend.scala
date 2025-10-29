@@ -9,22 +9,36 @@ import zio.stream.*
 
 import proteus.server.ServerInterceptor
 
-class ZioServerBackend[Context](
-  interceptor: ServerInterceptor[IO[StatusException, *], ZStream[Any, StatusException, *], RequestContext, Context],
+class ZioServerBackend[R, E, Context](
+  interceptor: ServerInterceptor[IO[StatusException, *], ZIO[R, E, *], ZStream[Any, StatusException, *], ZStream[R, E, *], RequestContext, Context],
   runtime: Runtime[Any] = Runtime.default
-) extends ServerBackend[IO[StatusException, *], ZStream[Any, StatusException, *], Context] {
+) extends ServerBackend[ZIO[R, E, *], ZStream[R, E, *], Context] {
   def handler[Request, Response](
-    rpc: ServerRpc[IO[StatusException, *], ZStream[Any, StatusException, *], Context, Request, Response]
+    rpc: ServerRpc[ZIO[R, E, *], ZStream[R, E, *], Context, Request, Response]
   ): ServerCallHandler[Request, Response] =
     rpc match {
-      case ServerRpc.Unary(_, logic)           =>
-        ZServerCallHandler.unaryCallHandler(runtime, (req, context) => interceptor.unary(ctx => logic(req, ctx))(context))
-      case ServerRpc.ClientStreaming(_, logic) =>
-        ZServerCallHandler.clientStreamingCallHandler(runtime, (req, context) => interceptor.unary(ctx => logic(req, ctx))(context))
-      case ServerRpc.ServerStreaming(_, logic) =>
-        ZServerCallHandler.serverStreamingCallHandler(runtime, (req, context) => interceptor.stream(ctx => logic(req, ctx))(context))
-      case ServerRpc.BidiStreaming(_, logic)   =>
-        ZServerCallHandler.bidiCallHandler(runtime, (req, context) => interceptor.stream(ctx => logic(req, ctx))(context))
+      case ServerRpc.Unary(rpc, logic)           =>
+        ZServerCallHandler.unaryCallHandler(
+          runtime,
+          (req, context) => interceptor.unary(req, ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(context)
+        )
+      case ServerRpc.ClientStreaming(rpc, logic) =>
+        ZServerCallHandler.clientStreamingCallHandler(
+          runtime,
+          (req, context) =>
+            interceptor.clientStreaming[Request, Response](req => ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(req)(context)
+        )
+      case ServerRpc.ServerStreaming(rpc, logic) =>
+        ZServerCallHandler.serverStreamingCallHandler(
+          runtime,
+          (req, context) => interceptor.serverStreaming(req, ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(context)
+        )
+      case ServerRpc.BidiStreaming(rpc, logic)   =>
+        ZServerCallHandler.bidiCallHandler(
+          runtime,
+          (req, context) =>
+            interceptor.bidiStreaming[Request, Response](req => ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(req)(context)
+        )
     }
 }
 

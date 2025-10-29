@@ -10,32 +10,42 @@ import io.grpc.*
 
 import proteus.server.ServerInterceptor
 
-class Fs2ServerBackend[F[_]: Async, Context](
-  interceptor: ServerInterceptor[F, Stream[F, *], RequestResponseMetadata, Context],
+class Fs2ServerBackend[F[_]: Async, G[_], Context](
+  interceptor: ServerInterceptor[F, G, Stream[F, *], Stream[G, *], RequestResponseMetadata, Context],
   dispatcher: Dispatcher[F],
   serverOptions: ServerOptions = ServerOptions.default
-) extends ServerBackend[F, Stream[F, *], Context] {
+) extends ServerBackend[G, Stream[G, *], Context] {
   def handler[Request, Response](
-    rpc: ServerRpc[F, Stream[F, *], Context, Request, Response]
+    rpc: ServerRpc[G, Stream[G, *], Context, Request, Response]
   ): ServerCallHandler[Request, Response] =
     rpc match {
-      case ServerRpc.Unary(_, logic)           =>
+      case ServerRpc.Unary(rpc, logic)           =>
         Fs2ServerCallHandler[F](dispatcher, serverOptions).unaryToUnaryCallTrailers { (req, context) =>
           val responseMetadata = new Metadata()
-          interceptor.unary(ctx => logic(req, ctx))(RequestResponseMetadata(context, responseMetadata)).map((_, responseMetadata))
+          interceptor
+            .unary(req, ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(RequestResponseMetadata(context, responseMetadata))
+            .map((_, responseMetadata))
         }
-      case ServerRpc.ClientStreaming(_, logic) =>
+      case ServerRpc.ClientStreaming(rpc, logic) =>
         Fs2ServerCallHandler[F](dispatcher, serverOptions).streamingToUnaryCallTrailers { (req, context) =>
           val responseMetadata = new Metadata()
-          interceptor.unary(ctx => logic(req, ctx))(RequestResponseMetadata(context, responseMetadata)).map((_, responseMetadata))
+          interceptor
+            .clientStreaming[Request, Response](req => ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(req)(
+              RequestResponseMetadata(context, responseMetadata)
+            )
+            .map((_, responseMetadata))
         }
-      case ServerRpc.ServerStreaming(_, logic) =>
+      case ServerRpc.ServerStreaming(rpc, logic) =>
         Fs2ServerCallHandler[F](dispatcher, serverOptions).unaryToStreamingCall { (req, context) =>
-          interceptor.stream(ctx => logic(req, ctx))(RequestResponseMetadata(context, new Metadata()))
+          interceptor.serverStreaming(req, ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(
+            RequestResponseMetadata(context, new Metadata())
+          )
         }
-      case ServerRpc.BidiStreaming(_, logic)   =>
+      case ServerRpc.BidiStreaming(rpc, logic)   =>
         Fs2ServerCallHandler[F](dispatcher, serverOptions).streamingToStreamingCall { (req, context) =>
-          interceptor.stream(ctx => logic(req, ctx))(RequestResponseMetadata(context, new Metadata()))
+          interceptor.bidiStreaming[Request, Response](req => ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(req)(
+            RequestResponseMetadata(context, new Metadata())
+          )
         }
     }
 }
@@ -44,13 +54,13 @@ object Fs2ServerBackend {
   def apply[F[_]: Async](
     dispatcher: Dispatcher[F],
     serverOptions: ServerOptions = ServerOptions.default
-  ): Fs2ServerBackend[F, RequestResponseMetadata] =
+  ): Fs2ServerBackend[F, F, RequestResponseMetadata] =
     apply(ServerInterceptor.empty, dispatcher, serverOptions)
 
   def apply[F[_]: Async, Context](
-    interceptor: ServerInterceptor[F, Stream[F, *], RequestResponseMetadata, Context],
+    interceptor: ServerContextInterceptor[F, Stream[F, *], RequestResponseMetadata, Context],
     dispatcher: Dispatcher[F],
     serverOptions: ServerOptions
-  ): Fs2ServerBackend[F, Context] =
+  ): Fs2ServerBackend[F, F, Context] =
     new Fs2ServerBackend(interceptor, dispatcher, serverOptions)
 }
