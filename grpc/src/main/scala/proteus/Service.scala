@@ -111,7 +111,8 @@ extension (dep: Dependency.type) {
     fromServices(dependencyName, Some(packageName), Some(path), services*)
 
   private def fromServices(dependencyName: String, packageName: Option[String], path: Option[String], services: Service[?]*): Dependency = {
-    val allTypes = ListSet.from(services.flatMap(_.toProtoIR))
+    val allTypes     = ListSet.from(services.flatMap(_.toProtoIR))
+    val dependencies = services.toList.flatMap(_.dependencies).distinct
 
     val requestResponseTypeNames =
       services.flatMap(_.rpcs.flatMap(rpc => List(rpc.toProtoIR.request.fqn.name, rpc.toProtoIR.response.fqn.name))).toSet
@@ -122,6 +123,6 @@ extension (dep: Dependency.type) {
       case ProtoIR.TopLevelDef.ServiceDef(_)    => true
     }
 
-    Dependency(dependencyName, packageName, path, commonTypes, Nil)
+    Dependency(dependencyName, packageName, path, commonTypes, dependencies)
   }
 }
