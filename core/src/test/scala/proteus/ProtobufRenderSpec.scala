@@ -968,6 +968,65 @@ enum Priority {
 """
 
         assertTrue(rendered == expected)
+      },
+      test("proteus comment modifier renders single-line enum element comments") {
+        enum Status derives Schema { case Active, Inactive, Pending }
+        case class StatusMessage(status: Status) derives Schema
+
+        val codec    = Schema[StatusMessage].derive(
+          deriver
+            .modifier[Status]("Active", comment("Currently active"))
+            .modifier[Status]("Inactive", comment("Temporarily disabled"))
+        )
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message StatusMessage {
+    Status status = 1;
+}
+
+enum Status {
+    ACTIVE = 0; // Currently active
+    INACTIVE = 1; // Temporarily disabled
+    PENDING = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
+      },
+      test("proteus comment modifier renders multiline enum element comments") {
+        enum Priority derives Schema { case Low, Medium, High }
+        case class Task(priority: Priority) derives Schema
+
+        val codec    = Schema[Task].derive(
+          deriver
+            .modifier[Priority]("Low", comment("Low priority task\nProcessed when resources available\nNot urgent"))
+            .modifier[Priority]("High", comment("High priority task\nProcessed immediately"))
+        )
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message Task {
+    Priority priority = 1;
+}
+
+enum Priority {
+    // Low priority task
+    // Processed when resources available
+    // Not urgent
+    LOW = 0;
+    MEDIUM = 1;
+    // High priority task
+    // Processed immediately
+    HIGH = 2;
+}
+"""
+
+        assertTrue(rendered == expected)
       }
     ),
     suite("Derivation Flags")(

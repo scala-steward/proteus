@@ -55,8 +55,21 @@ object Renderer {
 
   def renderEnumElement(enumValue: EnumValue): Text =
     enumValue match {
-      case EnumValue(identifier, intvalue) =>
-        line(s"$identifier = $intvalue;")
+      case EnumValue(identifier, intvalue, comment) =>
+        comment match {
+          case Some(c) if c.contains("\n") =>
+            // Multiline comment - render on previous line(s)
+            many(
+              renderComment(c),
+              line(s"$identifier = $intvalue;")
+            )
+          case Some(c)                     =>
+            // Single-line comment - render inline
+            line(s"$identifier = $intvalue; // $c")
+          case None                        =>
+            // No comment
+            line(s"$identifier = $intvalue;")
+        }
     }
 
   def renderEnum(enumeration: Enum): Text = {

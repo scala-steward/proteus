@@ -175,9 +175,9 @@ object ProtobufCodec {
       }
   }
 
-  case class EnumValue[A](name: String, index: Int, value: A)
+  case class EnumValue[A](name: String, index: Int, value: A, comment: Option[String] = None)
 
-  final case class Enum[A](name: String, values: List[EnumValue[A]], reserved: List[Int], comment: Option[String] = None, nested: Boolean)
+  final case class Enum[A](name: String, values: List[EnumValue[A]], reserved: List[Int], nested: Boolean, comment: Option[String] = None)
     extends ProtobufCodec[A] {
     val valuesByIndex: HashMap[Int, A]   = HashMap.from(values.map(v => (v.index, v.value)))
     val indexesByValue: HashMap[A, Int]  = HashMap.from(values.map(v => (v.value, v.index)))
@@ -191,7 +191,7 @@ object ProtobufCodec {
     def toProtoIR: ProtoIR.Enum =
       ProtoIR.Enum(
         name,
-        values.sortBy(_.index).map(v => ProtoIR.EnumValue(v.name, v.index)).toList,
+        values.sortBy(_.index).map(v => ProtoIR.EnumValue(v.name, v.index, v.comment)).toList,
         reserved = reserved.toList.sorted.map(ProtoIR.Reserved.Number(_)),
         comment = comment
       )

@@ -232,9 +232,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         val prefix     = getEnumPrefix(modifiers, flags, typeName)
         val suffix     = getEnumSuffix(modifiers, flags, typeName)
         val enumName   = getEnumMemberName(c.name, c.modifiers, prefix, suffix)
-        builder += ProtobufCodec.EnumValue(enumName, fieldIndex, a)
+        builder += ProtobufCodec.EnumValue(enumName, fieldIndex, a, getComment(c.modifiers))
       }
-      Lazy(ProtobufCodec.Enum(getTypeName(typeName, modifiers), builder.result(), reservedIndexes, getComment(modifiers), nested = nested))
+      Lazy(ProtobufCodec.Enum(getTypeName(typeName, modifiers), builder.result(), reservedIndexes, nested = nested, getComment(modifiers)))
     } else {
       val nested        = modifiers.collectFirst { case Modifier.config(`nestedModifier`, _) => true }.getOrElse(false)
       val inlineOneOf   = modifiers.collectFirst { case Modifier.config(`oneOfModifier`, value) => value.contains("inline") }.getOrElse(false)
