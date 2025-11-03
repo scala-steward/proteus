@@ -177,7 +177,12 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
             var idx   = 0
             val len   = fields.length
             while (idx < len) {
-              getField(idx, fieldsWithInstances(idx))
+              try
+                getField(idx, fieldsWithInstances(idx))
+              catch {
+                case e: Exception =>
+                  throw new Exception(s"Error deriving field ${fieldsWithInstances(idx).term.name} of type ${typeName.name}", e)
+              }
               idx += 1
             }
             val codec = ProtobufCodec.Message(
@@ -431,7 +436,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         (b: B) =>
           wrapperBinding.wrap(b) match {
             case Right(a)    => a
-            case Left(error) => throw new Exception(s"Wrapper conversion failed: $error")
+            case Left(error) => throw new Exception(s"Wrapper conversion failed for type ${typeName.name}: $error")
           },
         (a: A) => wrapperBinding.unwrap(a)
       )
