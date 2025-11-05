@@ -31,7 +31,7 @@ extension (protoType: ProtoIR.Type) {
 
 extension (field: ProtoIR.Field) {
   def addToDescriptor(builder: DescriptorProto.Builder, oneofIndex: Option[Int], parentFqn: String, topLevelFqns: Map[String, String]): Unit = {
-    val fieldBuilder = FieldDescriptorProto.newBuilder().setName(field.name).setNumber(field.number)
+    val fieldBuilder = FieldDescriptorProto.newBuilder().setJsonName(toCamelCase(field.name)).setName(field.name).setNumber(field.number)
     oneofIndex.foreach(fieldBuilder.setOneofIndex)
 
     def makeFqn(name: String): String =
