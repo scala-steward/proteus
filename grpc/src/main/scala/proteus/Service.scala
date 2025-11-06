@@ -84,7 +84,7 @@ case class Service[Rpcs] private (
     renderToFile(options, folder, internal.toSnakeCase(name))
 
   def findConflicts: Map[String, List[String]] =
-    filteredTypes
+    toProtoIR
       .groupBy(_.name)
       .view
       .mapValues(_.map(Renderer.renderTopLevelDef).map(Text.renderText).toList.distinct)
