@@ -483,7 +483,7 @@ object ProtobufCodec {
         if (field ne null) {
           val value = loop(field.field.codec, field, tag)
           visited(field.index) = true
-          if (value != null) setToRegister(registers, offset, field.field.register.asInstanceOf[Register[Any]], value)
+          if (value != null) setToRegister(registers, offset, field.field.register, value)
         } else input.skipField(tag): Unit
       }
     }
