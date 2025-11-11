@@ -98,9 +98,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                 val name     = getFieldName(field.term.name, field.term.modifiers)
                 val register = registers(index)
                 field.instance match {
-                  case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneofField[inner]), _, _, _, _, true, _, _)) =>
+                  case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneOfField[inner]), _, _, _, _, true, _, _)) =>
                     val idIterator = getReservedIndexes(field.term.modifiers).iterator
-                    builder += OneofField(
+                    builder += OneOfField(
                       name,
                       o.cases.map { field =>
                         val caseId =
@@ -122,9 +122,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                       },
                       o.comment
                     )
-                  case ProtobufCodec.Message(_, Array(o: OneofField[?]), _, _, _, _, true, _, _)                                            =>
+                  case ProtobufCodec.Message(_, Array(o: OneOfField[?]), _, _, _, _, true, _, _)                                            =>
                     val idIterator = getReservedIndexes(field.term.modifiers).iterator
-                    builder += OneofField(
+                    builder += OneOfField(
                       name,
                       o.cases.map { field =>
                         val caseId =
@@ -147,7 +147,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                     id += 1
                     while (allReservedIndexes.contains(id)) id += 1
                     val valueId = id
-                    builder += OneofField(
+                    builder += OneOfField(
                       getFieldName(field.term.name, field.term.modifiers),
                       Array(
                         SimpleField(s"no_$name", emptyId, Empty.emptyCodec.transform(_ => None, _ => Empty()), register, null, None),
@@ -253,7 +253,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         val builder            = Array.newBuilder[ProtobufCodec.MessageField[?]]
         var id                 = 1
         val register           = Register.Object(0)
-        builder += OneofField(
+        builder += OneOfField(
           "value",
           casesWithInstances.zipWithIndex.map { case (c, index) =>
             val fieldId = getReservedIndex(c.term.modifiers) match {
@@ -530,7 +530,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
               val defaultValue = getDefaultValue(using field.codec)
               if (defaultValue == null) break(null.asInstanceOf[A])
               setToRegister(registers, RegisterOffset.Zero, field.register, defaultValue)
-            case oneOf: OneofField[?]    =>
+            case oneOf: OneOfField[?]    =>
               oneOf.cases.headOption.foreach { field =>
                 val defaultValue = getDefaultValue(using field.codec)
                 if (defaultValue == null) break(null.asInstanceOf[A])

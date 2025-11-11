@@ -43,8 +43,8 @@ object ProtoIR {
     final case class FieldElement(field: Field)             extends MessageElement {
       def collectTypeReferences: Set[String] = field.ty.collectTypeReferences
     }
-    final case class OneofElement(oneof: Oneof)             extends MessageElement {
-      def collectTypeReferences: Set[String] = oneof.fields.flatMap(_.ty.collectTypeReferences).toSet
+    final case class OneOfElement(oneOf: OneOf)             extends MessageElement {
+      def collectTypeReferences: Set[String] = oneOf.fields.flatMap(_.ty.collectTypeReferences).toSet
     }
     final case class NestedMessageElement(message: Message) extends MessageElement {
       def collectTypeReferences: Set[String] = message.collectTypeReferences
@@ -54,7 +54,7 @@ object ProtoIR {
     }
   }
 
-  final case class Oneof(name: String, fields: List[Field], comment: Option[String] = None)
+  final case class OneOf(name: String, fields: List[Field], comment: Option[String] = None)
 
   final case class Field(ty: Type, name: String, number: Int, deprecated: Boolean, optional: Boolean, comment: Option[String])
 

@@ -56,7 +56,7 @@ implicit def jsonWriterCodec[A](using codec: ProtobufCodec[A], registry: Registr
                     while (i < c.fields.length) {
                       val field = c.fields(i) match {
                         case f: SimpleField[?]   => Some(f)
-                        case f: OneofField[b]    =>
+                        case f: OneOfField[b]    =>
                           val v = getFromRegister(registers, offset, f.register).asInstanceOf[b]
                           Some(f.cases(f.discriminator.discriminate(v)))
                         case _: ExcludedField[?] => None

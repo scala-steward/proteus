@@ -108,26 +108,26 @@ object Renderer {
       )
   }
 
-  def renderOneof(oneof: Oneof): Text = {
-    val commentLine = oneof.comment.map(renderComment).getOrElse(many())
-    if (oneof.fields.nonEmpty) {
+  def renderOneOf(oneOf: OneOf): Text = {
+    val commentLine = oneOf.comment.map(renderComment).getOrElse(many())
+    if (oneOf.fields.nonEmpty) {
       many(
         commentLine,
-        line(s"oneof ${oneof.name} {"),
-        indent(oneof.fields.map(renderField(_, isOneof = true))),
+        line(s"oneof ${oneOf.name} {"),
+        indent(oneOf.fields.map(renderField(_, isOneOf = true))),
         line("}")
       )
     } else
       many(
         commentLine,
-        line(s"oneof ${oneof.name} {}")
+        line(s"oneof ${oneOf.name} {}")
       )
   }
 
   def renderMessageElement(element: MessageElement): Text =
     element match {
       case MessageElement.FieldElement(field)           => renderField(field)
-      case MessageElement.OneofElement(oneof)           => renderOneof(oneof)
+      case MessageElement.OneOfElement(oneOf)           => renderOneOf(oneOf)
       case MessageElement.NestedMessageElement(message) => many(renderMessage(message), emptyLine)
       case MessageElement.NestedEnumElement(enumDef)    => many(renderEnum(enumDef), emptyLine)
     }
@@ -154,14 +154,14 @@ object Renderer {
     )
   }
 
-  def renderField(field: Field, isOneof: Boolean = false): Text =
+  def renderField(field: Field, isOneOf: Boolean = false): Text =
     if (field == ProtoIR.excludedField) many()
     else {
       val ty         = renderType(field.ty)
       val deprecated = if (field.deprecated) " [deprecated = true]" else ""
       val optional   = field.ty match {
         case _: Type.PrimitiveType | _: Type.EnumRefType | _: Type.RefType =>
-          if (field.optional && !isOneof) "optional " else ""
+          if (field.optional && !isOneOf) "optional " else ""
         case _: Type.ListType | _: Type.MapType                            =>
           ""
       }

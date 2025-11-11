@@ -86,7 +86,7 @@ object ProtobufCodec {
 
   sealed trait MessageField[A] {
     def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter
-    def toProtoIR: ProtoIR.MessageElement.FieldElement | ProtoIR.MessageElement.OneofElement
+    def toProtoIR: ProtoIR.MessageElement.FieldElement | ProtoIR.MessageElement.OneOfElement
   }
 
   object MessageField {
@@ -120,7 +120,7 @@ object ProtobufCodec {
       }
     }
 
-    final case class OneofField[A](
+    final case class OneOfField[A](
       name: String,
       cases: Array[SimpleField[?]],
       register: Register[Any],
@@ -133,7 +133,7 @@ object ProtobufCodec {
         ProtobufCodec.toProtoWriter(field.codec, res.asInstanceOf[field.codec.Focus], field.id, registers, nextOffset, alwaysEncode = true)
       }
 
-      def toProtoIR: ProtoIR.MessageElement.OneofElement = {
+      def toProtoIR: ProtoIR.MessageElement.OneOfElement = {
         val fields = cases
           .map(field =>
             ProtoIR.Field(
@@ -147,7 +147,7 @@ object ProtobufCodec {
           )
           .toList
           .sortBy(_.number)
-        ProtoIR.MessageElement.OneofElement(ProtoIR.Oneof(name, fields, comment))
+        ProtoIR.MessageElement.OneOfElement(ProtoIR.OneOf(name, fields, comment))
       }
     }
 
@@ -218,12 +218,12 @@ object ProtobufCodec {
   ) extends ProtobufCodec[A] {
     val simpleFields: List[SimpleField[?]]   = fields.toList.flatMap {
       case f: SimpleField[?]   => List(f)
-      case f: OneofField[?]    => f.cases.toList
+      case f: OneOfField[?]    => f.cases.toList
       case f: ExcludedField[?] => Nil
     }
     val fieldMap: IntDenseMap[FieldMapEntry] = IntDenseMap.from(fields.zipWithIndex.flatMap {
       case (f: SimpleField[?], idx)   => List(f.id -> FieldMapEntry(f, idx))
-      case (f: OneofField[?], idx)    => f.cases.map(c => c.id -> FieldMapEntry(c, idx)).toList
+      case (f: OneOfField[?], idx)    => f.cases.map(c => c.id -> FieldMapEntry(c, idx)).toList
       case (f: ExcludedField[?], idx) => Nil
     })
     val mayUseBuilder: Boolean               = simpleFields.exists(_.mayUseBuilder)
@@ -266,7 +266,7 @@ object ProtobufCodec {
       val nestedMessageElements = simpleFields.collect(field => findNested(field.codec)).flatten.distinct
 
       val sortedAllElements = elements.sortBy {
-        case c: ProtoIR.MessageElement.OneofElement => c.oneof.fields.head.number
+        case c: ProtoIR.MessageElement.OneOfElement => c.oneOf.fields.head.number
         case e: ProtoIR.MessageElement.FieldElement => e.field.number
       }
       ProtoIR.Message(
@@ -393,7 +393,7 @@ object ProtobufCodec {
       if (!visited(i)) {
         m.fields(i) match {
           case field: SimpleField[?]   => setToRegister(registers, offset, field.register, field.defaultValue)
-          case field: OneofField[?]    => setToRegister(registers, offset, field.register, null)
+          case field: OneOfField[?]    => setToRegister(registers, offset, field.register, null)
           case field: ExcludedField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
         }
       } else if (m.mayUseBuilder) {

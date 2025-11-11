@@ -30,9 +30,9 @@ extension (protoType: ProtoIR.Type) {
 }
 
 extension (field: ProtoIR.Field) {
-  def addToDescriptor(builder: DescriptorProto.Builder, oneofIndex: Option[Int], parentFqn: String, topLevelFqns: Map[String, String]): Unit = {
+  def addToDescriptor(builder: DescriptorProto.Builder, oneOfIndex: Option[Int], parentFqn: String, topLevelFqns: Map[String, String]): Unit = {
     val fieldBuilder = FieldDescriptorProto.newBuilder().setJsonName(toCamelCase(field.name)).setName(field.name).setNumber(field.number)
-    oneofIndex.foreach(fieldBuilder.setOneofIndex)
+    oneOfIndex.foreach(fieldBuilder.setOneofIndex)
 
     def makeFqn(name: String): String =
       s".${topLevelFqns.get(name).getOrElse(s"$parentFqn.$name")}"
@@ -104,10 +104,10 @@ extension (msg: ProtoIR.Message) {
     msg.elements.foreach {
       case ProtoIR.MessageElement.FieldElement(field)                 =>
         if (field != ProtoIR.excludedField) field.addToDescriptor(builder, None, fqn, augmentedFqns)
-      case ProtoIR.MessageElement.OneofElement(oneof)                 =>
-        builder.addOneofDecl(OneofDescriptorProto.newBuilder().setName(oneof.name).build())
-        val oneofIndex = builder.getOneofDeclCount - 1
-        oneof.fields.foreach(_.addToDescriptor(builder, Some(oneofIndex), fqn, augmentedFqns))
+      case ProtoIR.MessageElement.OneOfElement(oneOf)                 =>
+        builder.addOneofDecl(OneofDescriptorProto.newBuilder().setName(oneOf.name).build())
+        val oneOfIndex = builder.getOneofDeclCount - 1
+        oneOf.fields.foreach(_.addToDescriptor(builder, Some(oneOfIndex), fqn, augmentedFqns))
       case ProtoIR.MessageElement.NestedMessageElement(nestedMessage) =>
         builder.addNestedType(nestedMessage.toDescriptor(s"$fqn.${nestedMessage.name}", topLevelFqns))
       case ProtoIR.MessageElement.NestedEnumElement(nestedEnum)       =>
