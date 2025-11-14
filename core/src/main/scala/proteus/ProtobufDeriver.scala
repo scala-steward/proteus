@@ -603,5 +603,5 @@ object ProtobufDeriver extends ProtobufDeriver(Set.empty, Vector.empty, Vector.e
     case NestedOneOf
   }
 
-  private case class TermInstance[F[_, _], A](term: Term[F, ?, A], instance: ProtobufCodec[A])
+  final private case class TermInstance[F[_, _], A](term: Term[F, ?, A], instance: ProtobufCodec[A])
 }

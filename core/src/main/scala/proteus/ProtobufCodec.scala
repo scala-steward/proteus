@@ -7,18 +7,25 @@ import scala.collection.immutable.HashMap
 import scala.collection.mutable
 
 import com.google.protobuf.{CodedInputStream, CodedOutputStream}
-import zio.blocks.schema.*
+import zio.blocks.schema.{Optional as _, *}
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
+import proteus.ProtobufCodec.*
 import proteus.ProtobufCodec.MessageField.*
 import proteus.internal.*
 
+/**
+  * A codec that describes how a scala type `A` is encoded and decoded to and from protobuf.
+  */
 sealed trait ProtobufCodec[A] {
-  type Focus = A
+  private[proteus] type Focus = A
 
-  import ProtobufCodec.*
-
+  /**
+    * Encodes a value of type `A` to its protobuf binary representation.
+    *
+    * @param value the value to encode.
+    */
   def encode(value: A): Array[Byte] =
     withRegisters { registers =>
       val writer = toProtoWriter(this, value, -1, registers, RegisterOffset.Zero, alwaysEncode = true)
@@ -28,23 +35,39 @@ sealed trait ProtobufCodec[A] {
       bytes
     }
 
+  /**
+    * Decodes a value of type `A` from its protobuf binary representation.
+    *
+    * @param bytes the protobuf binary representation to decode.
+    */
   def decode(bytes: Array[Byte]): A =
     decode(CodedInputStream.newInstance(bytes))
 
+  /**
+    * Decodes a value of type `A` from its protobuf binary representation.
+    *
+    * @param inputStream the input stream to decode.
+    */
   def decode(inputStream: InputStream): A =
     decode(CodedInputStream.newInstance(inputStream))
 
-  def decode(input: CodedInputStream): A =
-    withRegisters { registers =>
-      read(registers, RegisterOffset.Zero, this)(using input)
-    }
-
+  /**
+    * Creates a codec for `B` from the current codec of `A` given an isomorphism between `A` and `B`.
+    *
+    * @param from the function to transform from `A` to `B`.
+    * @param to the function to transform from `B` to `A`.
+    */
   def transform[B](from: A => B, to: B => A): ProtobufCodec[B] =
     this match {
       case c: Transform[a0, A] =>
         Transform[a0, B](a => from(c.from(a)), b => c.to(to(b)), c.codec)
       case _                   =>
         Transform(from, to, this)
+    }
+
+  private def decode(input: CodedInputStream): A =
+    withRegisters { registers =>
+      read(registers, RegisterOffset.Zero, this)(using input)
     }
 
   private[proteus] def makeNested: ProtobufCodec[A] =
@@ -67,9 +90,19 @@ sealed trait ProtobufCodec[A] {
 }
 
 object ProtobufCodec {
+
+  /**
+    * Returns the codec for type `A` if it is already available.
+    */
   def apply[A](using codec: ProtobufCodec[A]): ProtobufCodec[A] = codec
 
-  inline def derived[T](using deriver: ProtobufDeriver, schema: Schema[T]): ProtobufCodec[T] =
+  /**
+    * Derives a codec for type `A` using the given deriver and schema.
+    *
+    * @param deriver the deriver to use.
+    * @param schema a [[Schema]] for type `A`.
+    */
+  inline def derived[A](using deriver: ProtobufDeriver, schema: Schema[A]): ProtobufCodec[A] =
     schema.derive(deriver)
 
   private val pool = new ThreadLocal[(Registers, AtomicBoolean)] {
@@ -85,7 +118,7 @@ object ProtobufCodec {
   }
 
   sealed trait MessageField[A] {
-    def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter
+    private[proteus] def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter
     def toProtoIR: ProtoIR.MessageElement.FieldElement | ProtoIR.MessageElement.OneOfElement
   }
 
@@ -98,7 +131,7 @@ object ProtobufCodec {
       defaultValue: Any,
       comment: Option[String] = None
     ) extends MessageField[A] {
-      def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
+      private[proteus] def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
         val res = getFromRegister(registers, offset, register).asInstanceOf[A]
         ProtobufCodec.toProtoWriter(codec, res, id, registers, nextOffset, alwaysEncode = false)
       }
@@ -108,7 +141,7 @@ object ProtobufCodec {
         ProtoIR.MessageElement.FieldElement(field)
       }
 
-      val mayUseBuilder: Boolean = {
+      private[proteus] val mayUseBuilder: Boolean = {
         def loop[A](codec: ProtobufCodec[A]): Boolean =
           codec match {
             case _: Repeated[_, _]       => true
@@ -127,7 +160,7 @@ object ProtobufCodec {
       discriminator: Discriminator[A],
       comment: Option[String] = None
     ) extends MessageField[A] {
-      def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
+      private[proteus] def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
         val res   = getFromRegister(registers, offset, register).asInstanceOf[A]
         val field = cases(discriminator.discriminate(res))
         ProtobufCodec.toProtoWriter(field.codec, res.asInstanceOf[field.codec.Focus], field.id, registers, nextOffset, alwaysEncode = true)
@@ -152,14 +185,14 @@ object ProtobufCodec {
     }
 
     final case class ExcludedField[A](register: Register[Any], defaultValue: Any) extends MessageField[A] {
-      def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = null
-      def toProtoIR: ProtoIR.MessageElement.FieldElement                                                          =
+      private[proteus] def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = null
+      def toProtoIR: ProtoIR.MessageElement.FieldElement                                                                           =
         ProtoIR.MessageElement.FieldElement(ProtoIR.excludedField)
     }
   }
 
   final case class Primitive[A](primitiveType: PrimitiveType[A]) extends ProtobufCodec[A] {
-    def toProtoWriter(a: A, id: Int, alwaysEncode: Boolean): ProtobufWriter =
+    private[proteus] def toProtoWriter(a: A, id: Int, alwaysEncode: Boolean): ProtobufWriter =
       primitiveType match {
         case _: PrimitiveType.Int     =>
           val value: Int = a
@@ -183,7 +216,7 @@ object ProtobufCodec {
       }
   }
 
-  case class EnumValue[A](name: String, index: Int, value: A, comment: Option[String] = None)
+  final case class EnumValue[A](name: String, index: Int, value: A, comment: Option[String] = None)
 
   final case class Enum[A](name: String, values: List[EnumValue[A]], reserved: List[Int], nested: Boolean, comment: Option[String] = None)
     extends ProtobufCodec[A] {
@@ -191,7 +224,7 @@ object ProtobufCodec {
     val indexesByValue: HashMap[A, Int]  = HashMap.from(values.map(v => (v.value, v.index)))
     val namesByValue: HashMap[A, String] = HashMap.from(values.map(v => (v.value, v.name)))
 
-    def toProtoWriter(a: A, id: Int, alwaysEncode: Boolean): ProtobufWriter.IntPrimitive = {
+    private[proteus] def toProtoWriter(a: A, id: Int, alwaysEncode: Boolean): ProtobufWriter.IntPrimitive = {
       val index = indexesByValue(a)
       if (index == 0 && !alwaysEncode) null else internal.ProtobufWriter.IntPrimitive(index, id)
     }
@@ -216,19 +249,19 @@ object ProtobufCodec {
     nested: Boolean,
     comment: Option[String] = None
   ) extends ProtobufCodec[A] {
-    val simpleFields: List[SimpleField[?]]  = fields.toList.flatMap {
+    val simpleFields: List[SimpleField[?]]      = fields.toList.flatMap {
       case f: SimpleField[?]   => List(f)
       case f: OneOfField[?]    => f.cases.toList
       case f: ExcludedField[?] => Nil
     }
-    val fieldMap: IntDenseMap[IndexedField] = IntDenseMap.from(fields.zipWithIndex.flatMap {
+    val fieldMap: IntDenseMap[IndexedField]     = IntDenseMap.from(fields.zipWithIndex.flatMap {
       case (f: SimpleField[?], idx)   => List(f.id -> IndexedField(f, idx))
       case (f: OneOfField[?], idx)    => f.cases.map(c => c.id -> IndexedField(c, idx)).toList
       case (f: ExcludedField[?], idx) => Nil
     })
-    val mayUseBuilder: Boolean              = simpleFields.exists(_.mayUseBuilder)
+    private[proteus] val mayUseBuilder: Boolean = simpleFields.exists(_.mayUseBuilder)
 
-    def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter.Message = {
+    private[proteus] def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter.Message = {
       deconstructor.deconstruct(registers, offset, a)
       val nextOffset = RegisterOffset.add(offset, usedRegisters)
       val builder    = List.newBuilder[ProtobufWriter]
@@ -284,7 +317,7 @@ object ProtobufCodec {
     deconstructor: SeqDeconstructor[C],
     packed: Boolean
   ) extends ProtobufCodec[C[E]] {
-    def toElementProtoWriter[A](codec: ProtobufCodec[A]): (Int, Registers, RegisterOffset) => A => ProtobufWriter =
+    private def toElementProtoWriter[A](codec: ProtobufCodec[A]): (Int, Registers, RegisterOffset) => A => ProtobufWriter =
       codec match {
         case c: Primitive[_]        => (id, _, _) => c.toProtoWriter(_, id, alwaysEncode = true)
         case c: Message[_]          => (id, registers, offset) => c.toProtoWriter(_, id, registers, offset)
@@ -302,10 +335,16 @@ object ProtobufCodec {
         case _                      => throw new Exception(s"Invalid codec inside repeated: $codec")
       }
 
-    val elementProtoWriter: (Int, Registers, RegisterOffset) => E => ProtobufWriter =
+    private val elementProtoWriter: (Int, Registers, RegisterOffset) => E => ProtobufWriter =
       toElementProtoWriter(element)
 
-    def toProtoWriter(a: C[E], id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean): ProtobufWriter.Repeated = {
+    private[proteus] def toProtoWriter(
+      a: C[E],
+      id: Int,
+      registers: Registers,
+      offset: RegisterOffset,
+      alwaysEncode: Boolean
+    ): ProtobufWriter.Repeated = {
       val it = deconstructor.deconstruct(a)
       if (it.isEmpty && !alwaysEncode) null
       else {
@@ -329,7 +368,13 @@ object ProtobufCodec {
     constructor: MapConstructor[C],
     deconstructor: MapDeconstructor[C]
   ) extends ProtobufCodec[C[K, V]] {
-    def toProtoWriter(a: C[K, V], id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean): ProtobufWriter.Repeated = {
+    private[proteus] def toProtoWriter(
+      a: C[K, V],
+      id: Int,
+      registers: Registers,
+      offset: RegisterOffset,
+      alwaysEncode: Boolean
+    ): ProtobufWriter.Repeated = {
       val it = deconstructor.deconstruct(a)
       if (it.isEmpty && !alwaysEncode) null
       else {
@@ -349,32 +394,39 @@ object ProtobufCodec {
   }
 
   case object Bytes extends ProtobufCodec[Array[Byte]] {
-    def toProtoWriter(a: Array[Byte], id: Int, alwaysEncode: Boolean): ProtobufWriter.Bytes =
+    private[proteus] def toProtoWriter(a: Array[Byte], id: Int, alwaysEncode: Boolean): ProtobufWriter.Bytes =
       if (a.isEmpty && !alwaysEncode) null else internal.ProtobufWriter.Bytes(a, id)
   }
 
   final case class Transform[A, B](from: A => B, to: B => A, codec: ProtobufCodec[A]) extends ProtobufCodec[B] {
-    type Origin = A
+    private[proteus] type Origin = A
 
-    def toProtoWriter(b: B, id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean): ProtobufWriter =
+    private[proteus] def toProtoWriter(b: B, id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean): ProtobufWriter =
       ProtobufCodec.toProtoWriter(codec, to(b), id, registers, offset, alwaysEncode)
   }
 
   final case class RecursiveMessage[A](thunk: () => Message[A]) extends ProtobufCodec[A] {
-    lazy val codec = thunk()
+    private[proteus] lazy val codec = thunk()
 
-    def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter =
+    private[proteus] def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter =
       codec.toProtoWriter(a, id, registers, offset)
   }
 
   final case class Optional[A](codec: ProtobufCodec[A]) extends ProtobufCodec[Option[A]] {
-    def toProtoWriter(a: Option[A], id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter = a match {
+    private[proteus] def toProtoWriter(a: Option[A], id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter = a match {
       case None        => null
       case Some(value) => ProtobufCodec.toProtoWriter(codec, value, id, registers, offset, alwaysEncode = true)
     }
   }
 
-  def toProtoWriter[A](codec: ProtobufCodec[A], a: A, id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean): ProtobufWriter =
+  private[proteus] def toProtoWriter[A](
+    codec: ProtobufCodec[A],
+    a: A,
+    id: Int,
+    registers: Registers,
+    offset: RegisterOffset,
+    alwaysEncode: Boolean
+  ): ProtobufWriter =
     codec match {
       case c: Primitive[_]         => c.toProtoWriter(a, id, alwaysEncode)
       case c: Message[_]           => c.toProtoWriter(a, id, registers, offset)

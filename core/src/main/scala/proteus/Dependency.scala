@@ -11,7 +11,7 @@ import proteus.internal.*
   * A dependency is a collection of protobuf types.
   * It is typically used to bundle types together and write them to a single .proto file.
   */
-case class Dependency(
+final case class Dependency(
   dependencyName: String,
   packageName: Option[String],
   path: Option[String],

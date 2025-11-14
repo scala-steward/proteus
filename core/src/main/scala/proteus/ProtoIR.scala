@@ -67,8 +67,8 @@ object ProtoIR {
     final case class Range(start: Int, end: Int) extends Reserved
   }
 
-  case class EnumValue(name: String, intValue: Int, comment: Option[String] = None)
-  case class Enum(name: String, values: List[EnumValue], reserved: List[Reserved], comment: Option[String] = None)
+  final case class EnumValue(name: String, intValue: Int, comment: Option[String] = None)
+  final case class Enum(name: String, values: List[EnumValue], reserved: List[Reserved], comment: Option[String] = None)
 
   final case class Service(name: String, rpcs: List[Rpc], comment: Option[String] = None)
 
