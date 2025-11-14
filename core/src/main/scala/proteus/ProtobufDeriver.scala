@@ -24,13 +24,6 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
   def modifier[B: Schema](modifier: Modifier.Reflect): ProtobufDeriver =
     copy(modifiers = modifiers :+ ModifierReflectOverrideByType(Schema[B].reflect.typeName, modifier))
 
-  // can be replaced with Tuple.Contains once moving to the next Scala LTS
-  private type Contains[X <: Tuple, Y] <: Boolean = X match {
-    case Y *: _     => true
-    case _ *: xs    => Contains[xs, Y]
-    case EmptyTuple => false
-  }
-
   inline def modifier[B: Schema](termName: String, modifier: Modifier.Term): ProtobufDeriver = {
     inline summonInline[Mirror.Of[B]] match {
       case m: Mirror.ProductOf[B] =>
