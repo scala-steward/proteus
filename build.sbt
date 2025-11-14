@@ -1,4 +1,4 @@
-val scala3Version = "3.7.4"
+val scala3Version = "3.3.7"
 
 val grpcVersion                 = "1.74.0"
 val scalaProtobufRuntimeVersion = "0.8.16"
@@ -137,12 +137,11 @@ lazy val examples = project
 lazy val commonSettings = Def.settings(
   scalacOptions ++= Seq(
     "-deprecation",
-    "-preview",
     "-Xfatal-warnings",
     "-no-indent",
     "-Wunused:imports,params,privates,implicits,explicits,nowarn",
     "-Wvalue-discard",
-    "-Xkind-projector"
+    "-Ykind-projector"
   ),
   Test / fork := true
 )

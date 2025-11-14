@@ -407,8 +407,8 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         assert(decoded)(equalTo(original))
       },
       test("message with transformed List of messages") {
-        case class MyList[A](items: List[A]) derives Schema
-        given [A: Schema]: Schema[MyList[A]] = Schema[MyList[A]].wrapTotal(MyList[A](_), _.items)
+        case class MyList[A](items: List[A])
+        given [A: Schema]: Schema[MyList[A]] = Schema.derived[MyList[A]].wrapTotal(MyList[A](_), _.items)
 
         case class Item(name: String, value: Int) derives Schema
         case class Container(items: MyList[Item]) derives Schema

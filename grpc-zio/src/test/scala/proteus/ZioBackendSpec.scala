@@ -143,9 +143,9 @@ object ZioBackendSpec extends ZIOSpecDefault {
       requestMetadata.put(Metadata.Key.of("user-agent", Metadata.ASCII_STRING_MARSHALLER), "grpc-zio/1.0")
 
       val program = for {
-        client                       <- clientBackend.clientWithMetadata(metadataRpc, metadataService)
-        (response, responseMetadata) <- client(MetadataRequest("hello zio metadata"), requestMetadata)
-      } yield (response, responseMetadata)
+        client <- clientBackend.clientWithMetadata(metadataRpc, metadataService)
+        result <- client(MetadataRequest("hello zio metadata"), requestMetadata)
+      } yield result
 
       program
         .flatMap(result => assertTrue(validateMetadataResponse(result._1, result._2, "zio-client-789", "hello zio metadata")))

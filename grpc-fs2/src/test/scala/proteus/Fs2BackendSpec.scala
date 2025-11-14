@@ -181,9 +181,9 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           requestMetadata.put(Metadata.Key.of("user-agent", Metadata.ASCII_STRING_MARSHALLER), "grpc-fs2/1.0")
 
           val program = for {
-            client                       <- clientBackend.clientWithMetadata(metadataRpc, metadataService)
-            (response, responseMetadata) <- client(MetadataRequest("hello fs2 metadata"), requestMetadata)
-          } yield (response, responseMetadata)
+            client <- clientBackend.clientWithMetadata(metadataRpc, metadataService)
+            result <- client(MetadataRequest("hello fs2 metadata"), requestMetadata)
+          } yield result
 
           program.guarantee {
             IO {

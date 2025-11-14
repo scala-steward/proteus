@@ -22,15 +22,16 @@ class RouteGuideServer(port: Int, routeNotes: Ref[Map[Point, List[RouteNote]]]) 
 
   def recordRoute(points: ZStream[Any, StatusException, Point]): IO[StatusException, RouteSummary] =
     for {
-      _                         <- ZIO.log(s"Server: RecordRoute")
-      startTime                 <- Clock.currentTime(TimeUnit.MILLISECONDS)
-      (pointCount, distance, _) <- points
-                                     .runFold((0, 0, Option.empty[Point])) { case ((pointCount, distance, lastPoint), point) =>
-                                       val newDistance = lastPoint.map(RouteGuideData.calcDistance(_, point)).getOrElse(0) + distance
-                                       (pointCount + 1, newDistance, Some(point))
-                                     }
-      endTime                   <- Clock.currentTime(TimeUnit.MILLISECONDS)
-      elapsedTime                = ((endTime - startTime) / 1000).toInt
+      _                        <- ZIO.log(s"Server: RecordRoute")
+      startTime                <- Clock.currentTime(TimeUnit.MILLISECONDS)
+      res                      <- points
+                                    .runFold((0, 0, Option.empty[Point])) { case ((pointCount, distance, lastPoint), point) =>
+                                      val newDistance = lastPoint.map(RouteGuideData.calcDistance(_, point)).getOrElse(0) + distance
+                                      (pointCount + 1, newDistance, Some(point))
+                                    }
+      (pointCount, distance, _) = res
+      endTime                  <- Clock.currentTime(TimeUnit.MILLISECONDS)
+      elapsedTime               = ((endTime - startTime) / 1000).toInt
     } yield RouteSummary(pointCount, 0, distance, elapsedTime)
 
   def routeChat(notes: ZStream[Any, StatusException, RouteNote]): ZStream[Any, StatusException, RouteNote] =
