@@ -64,7 +64,7 @@ You can call `findConflicts` to get the list of conflicts without throwing an er
 
 ## Services
 
-Similarly, you can render entire gRPC services. Services can also have dependencies via `dependsOn`.
+Similarly, you can render entire gRPC services.
 
 ```scala
 import proteus.*
@@ -95,6 +95,8 @@ println(helloService.render(Nil))
 // }
 // 
 ```
+Services can also have dependencies via `dependsOn`.
+
 ::: tip
 If you have multiple services, the `Dependency.fromServices` method will create a `Dependency` that contains all the types used in the services except for the request and response types of the RPCs.
 That way, you can share the same types between services.
