@@ -62,6 +62,21 @@ Proteus will detect if the same type is defined in different ways and will throw
 You can call `findConflicts` to get the list of conflicts without throwing an error.
 :::
 
+`render` and `renderToFile` accept a list of `ProtoIR.TopLevelOption`, which are then added at the top of the .proto file.
+```scala
+val options = List(
+  ProtoIR.TopLevelOption("java_package", "com.example")
+)
+println(entities.render(options))
+// syntax = "proto3";
+// 
+// package com.example;
+// 
+// option java_package = "com.example";
+// 
+// ...
+```
+
 ## Services
 
 Similarly, you can render entire gRPC services.
