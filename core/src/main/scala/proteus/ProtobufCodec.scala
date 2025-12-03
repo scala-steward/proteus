@@ -108,7 +108,7 @@ object ProtobufCodec {
     * Derives a codec for type `A` using the given deriver and schema.
     *
     * @param deriver the deriver to use.
-    * @param schema a [[Schema]] for type `A`.
+    * @param schema a Schema for type `A`.
     */
   inline def derived[A](using deriver: ProtobufDeriver, schema: Schema[A]): ProtobufCodec[A] =
     schema.derive(deriver)
