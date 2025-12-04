@@ -482,7 +482,7 @@ object ProtobufCodec {
     * Represents a recursive message type.
     */
   final case class RecursiveMessage[A](thunk: () => Message[A]) extends ProtobufCodec[A] {
-    private[proteus] lazy val codec = thunk()
+    lazy val codec = thunk()
 
     private[proteus] def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter =
       codec.toProtoWriter(a, id, registers, offset)
