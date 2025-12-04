@@ -853,7 +853,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
         assert(result.isFailure)(isTrue) &&
           assert(result.failed.get.getMessage)(
-            containsString("Unsupported usage of optional inside List")
+            containsString("Unsupported usage of optional inside repeated type")
           )
       },
       test("derivation fails when list contains list") {
@@ -865,7 +865,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
         assert(result.isFailure)(isTrue) &&
           assert(result.failed.get.getMessage)(
-            containsString("Unsupported usage of repeated inside List")
+            containsString("Unsupported usage of repeated inside repeated type")
           )
       }
     )

@@ -344,9 +344,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
       if (isByteArray) ProtobufCodec.Bytes.asInstanceOf[ProtobufCodec[C[A]]]
       else {
         if (ProtobufCodec.isOptional(using instance))
-          throw new Exception(s"Unsupported usage of optional inside ${typeName.name}: $instance")
+          throw new Exception(s"Unsupported usage of optional inside repeated type $typeName")
         if (ProtobufCodec.isRepeated(using instance))
-          throw new Exception(s"Unsupported usage of repeated inside ${typeName.name}: $instance")
+          throw new Exception(s"Unsupported usage of repeated inside repeated type $typeName")
         ProtobufCodec.Repeated[C, A](instance, seqBinding.constructor, seqBinding.deconstructor, isPacked(instance))
       }
     }
