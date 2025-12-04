@@ -24,10 +24,10 @@ final case class Dependency(
   private lazy val dependencyTypes                      = filteredDependencies.flatMap(_.types).toSet
   private lazy val filteredTypes                        = types -- dependencyTypes
 
-  private[proteus] val topLevelFqns: Map[String, String] =
+  private[proteus] lazy val topLevelFqns: Map[String, String] =
     (allDependencies.flatMap(_.topLevelFqns) ++ types.map(t => (t.name, packageName.fold("")(_ + ".") + t.name))).toMap
 
-  private[proteus] val toImportStatement: ProtoIR.Statement.ImportStatement =
+  private[proteus] lazy val toImportStatement: ProtoIR.Statement.ImportStatement =
     ProtoIR.Statement.ImportStatement(s"${path.fold("")(_ + "/")}$dependencyName.proto")
 
   private[proteus] def hasAnyOf(typeNames: Set[String]): Boolean =
