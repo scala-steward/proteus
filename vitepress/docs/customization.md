@@ -108,6 +108,7 @@ println(Schema[Person].derive(deriver).render())
 Here are the different types of modifiers you can apply:
 - `excluded`: Excludes a field or an enum member from the protobuf type.
 - `nested`: Nests a type inside its parent message instead of creating it at the root level.
+- `unnested`: Forces a type to be created at the root level and prevent it from being nested by the OneOfFlag.Nested flag (see below).
 - `oneOf`: Forces a type to be encoded as a `oneof` rather than an enum.
 - `oneOf(flags: OneOfFlag*)`: Controls how `oneof` types are encoded—see below for more details.
 - `enumPrefix(prefix: String)`: Prefixes enum members with a string.
