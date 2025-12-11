@@ -17,7 +17,7 @@ object ProtobufRenderSpec extends ZIOSpecDefault {
 
   def renderCodec[A](codec: ProtobufCodec[A], packageName: String = "test"): String = {
     val topLevelDefs    = ProtobufCodec.toProtoIR(codec)
-    val statements      = topLevelDefs.map(Statement.TopLevelStatement(_))
+    val statements      = topLevelDefs.map(Statement.TopLevelStatement(_)).distinct
     val compilationUnit = CompilationUnit(Some(packageName), statements, List.empty)
     Renderer.render(compilationUnit)
   }
@@ -570,6 +570,7 @@ message Active {
         case class ContactMessage(
           id: Int,
           contact: ContactType,
+          contact2: ContactType,
           test: String
         ) derives Schema
 
@@ -577,6 +578,7 @@ message Active {
           deriver
             .modifier[ContactType](oneOf(OneOfFlag.Inline))
             .modifier[ContactMessage]("contact", reserved(2, 5))
+            .modifier[ContactMessage]("contact2", reserved(3, 6))
         )
         val rendered = renderCodec(codec)
         val expected = """syntax = "proto3";
@@ -589,7 +591,11 @@ message ContactMessage {
         Email email = 2;
         Phone phone = 5;
     }
-    string test = 3;
+    oneof contact2 {
+        Email email = 3;
+        Phone phone = 6;
+    }
+    string test = 4;
 }
 
 message Email {
