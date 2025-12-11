@@ -508,7 +508,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
       }
 
   private def getReservedIndexes(modifiers: Seq[Modifier]): List[Int] =
-    modifiers.collect { case Modifier.config(`reservedModifier`, value) => value.split(",").map(_.trim.toInt).toList }.flatten.toSet.toList
+    modifiers.collect { case Modifier.config(`reservedModifier`, value) => value.split(",").map(_.trim.toInt).toList }.flatten.toSet.toList.sorted
 
   private def getReservedIndex(modifiers: Seq[Modifier]): Option[Int] =
     modifiers.collectFirst { case Modifier.config(`reservedModifier`, value) => value.toIntOption }.flatten
