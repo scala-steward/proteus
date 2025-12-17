@@ -33,15 +33,15 @@ You could change your case class to match this, but you might also want to keep 
 In that case, you can create separate Scala types that match the expected Protobuf schema:
 ```scala
 object Proto {
-  case class Item(id: String, count: Int) derives Schema
-  case class Order(items: List[Item]) derives Schema
+  case class Item(id: String, count: Int)
+  case class Order(items: List[Item])
 }
 ```
 Then you can create a codec for the original type by calling `transform` on the codec for the Protobuf type and providing functions to transform from and to the original type.
 ```scala
 val codec: ProtobufCodec[Order] =
-  Schema[Proto.Order]
-    .derive(ProtobufDeriver)
+  ProtobufCodec
+    .derived[Proto.Order](using ProtobufDeriver)
     .transform[Order](
       proto => Order(proto.items.map(i => i.id -> i.count).toMap),
       order => Proto.Order(order.items.map((id, count) => Proto.Item(id, count)).toList)
@@ -62,7 +62,7 @@ println(codec.render())
 // }
 ```
 
-But what if your type is used by other types? How do you tell Proteus to use the correct codec? This is done by calling `.instance` on the deriver and providing the codec you want to use.
+But what if your type is used by other types? How do you tell Proteus to use the correct codec? This is done by calling `.instance` on the deriver and providing the codec you want to use. You need an instance of `Schema` for the type to apply the instance override to it.
 
 ```scala
 val deriver = ProtobufDeriver.instance(codec)
@@ -72,6 +72,7 @@ Now everywhere you use `deriver` (rather than the default `ProtobufDeriver`), yo
 ## Modifiers
 Creating a custom codec is useful, but it is boilerplate, and we want to avoid it when possible.
 For that reason, Proteus provides **modifiers** that allow you to easily change the generated schema for common use cases without having to touch the Scala types.
+Note that you need an instance of `Schema` for a type to apply a modifier to it.
 
 Let's see a simple example. We have this case class:
 ```scala
@@ -83,7 +84,7 @@ import proteus.Modifiers.*
 
 val deriver = ProtobufDeriver.modifier[Person](rename("User"))
 
-println(Schema[Person].derive(deriver).render())
+println(ProtobufDeriver.derived[Person](using deriver).render())
 // syntax = "proto3";
 // 
 // message User {
@@ -97,7 +98,7 @@ import proteus.Modifiers.*
 
 val deriver = ProtobufDeriver.modifier[Person]("name", rename("full_name"))
 
-println(Schema[Person].derive(deriver).render())
+println(ProtobufDeriver.derived[Person](using deriver).render())
 // syntax = "proto3";
 // 
 // message Person {
@@ -160,11 +161,11 @@ Here are the different types of derivation flags you can apply:
 
 Let's check a quick example.
 ```scala
-enum Status derives Schema { case Active, Inactive, Pending }
+enum Status { case Active, Inactive, Pending }
 
 val deriver = ProtobufDeriver.enable(DerivationFlag.AutoPrefixEnums)
 
-println(Schema[Status].derive(deriver).render())
+println(ProtobufCodec.derived[Status](using deriver).render())
 // syntax = "proto3";
 // 
 // enum Status {

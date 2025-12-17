@@ -15,7 +15,6 @@ Then, importing `proteus.json.*` will automatically provide an implicit `Encoder
 
 ```scala
 import io.circe.syntax.*
-import zio.blocks.schema.*
 
 import proteus.*
 import proteus.json.*
@@ -24,7 +23,7 @@ given ProtobufDeriver = ProtobufDeriver
 given Registry        = Registry.empty
 given Options         = Options.default
 
-case class HelloRequest(name: String) derives Schema, ProtobufCodec
+case class HelloRequest(name: String) derives ProtobufCodec
 val json = HelloRequest("world").asJson.noSpaces
 println(json)
 // {"name":"world"}

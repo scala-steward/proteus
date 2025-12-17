@@ -10,12 +10,11 @@ It is a collection of types that are related to each other and that we want to r
 It can be used to bundle types together and write them to a single .proto file.
 ```scala
 import proteus.*
-import zio.blocks.schema.*
 
 given ProtobufDeriver = ProtobufDeriver // your deriver instance
 
-case class Address(street: String, city: String) derives Schema, ProtobufCodec
-case class Person(name: String, address: Address) derives Schema, ProtobufCodec
+case class Address(street: String, city: String) derives ProtobufCodec
+case class Person(name: String, address: Address) derives ProtobufCodec
 
 val entities = Dependency("entities", "com.example").add[Person]
 println(entities.render(Nil))
@@ -83,12 +82,11 @@ Similarly, you can render entire gRPC services.
 
 ```scala
 import proteus.*
-import zio.blocks.schema.*
 
 given ProtobufDeriver = ProtobufDeriver // your deriver instance
 
-case class HelloRequest(name: String) derives Schema, ProtobufCodec
-case class HelloResponse(message: String) derives Schema, ProtobufCodec
+case class HelloRequest(name: String) derives ProtobufCodec
+case class HelloResponse(message: String) derives ProtobufCodec
 
 val helloRpc = Rpc.unary[HelloRequest, HelloResponse]("Hello")
 val helloService = Service("examples", "Greeter").rpc(helloRpc)

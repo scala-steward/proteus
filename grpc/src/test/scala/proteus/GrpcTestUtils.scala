@@ -18,17 +18,17 @@ object GrpcTestUtils {
   // Complex Message Types (for testing all protobuf features)
   // =============================================================================
 
-  enum Priority derives Schema, ProtobufCodec {
+  enum Priority derives ProtobufCodec {
     case Low, Medium, High, Critical
   }
 
-  enum ContactMethod derives Schema, ProtobufCodec {
+  enum ContactMethod derives ProtobufCodec {
     case Email(address: String)
     case Phone(number: String, country: String)
     case Slack(workspace: String, channel: String)
   }
 
-  case class Address(street: String, city: String, country: String, zipCode: Int) derives Schema, ProtobufCodec
+  case class Address(street: String, city: String, country: String, zipCode: Int) derives ProtobufCodec
 
   case class ComplexRequest(
     id: Long,
@@ -65,15 +65,15 @@ object GrpcTestUtils {
   // Simple Metadata Types (for testing client/server metadata)
   // =============================================================================
 
-  case class MetadataRequest(message: String) derives Schema, ProtobufCodec
-  case class MetadataResponse(echo: String, clientId: String, serverNote: String) derives Schema, ProtobufCodec
+  case class MetadataRequest(message: String) derives ProtobufCodec
+  case class MetadataResponse(echo: String, clientId: String, serverNote: String) derives ProtobufCodec
 
   // =============================================================================
   // Simple Streaming Types (for testing all streaming patterns)
   // =============================================================================
 
-  case class StreamRequest(value: Int) derives Schema, ProtobufCodec
-  case class StreamResponse(result: Int) derives Schema, ProtobufCodec
+  case class StreamRequest(value: Int) derives ProtobufCodec
+  case class StreamResponse(result: Int) derives ProtobufCodec
 
   // =============================================================================
   // RPC Definitions

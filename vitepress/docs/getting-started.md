@@ -2,7 +2,7 @@
 
 **Proteus** is a **[Scala](https://www.scala-lang.org/) open source library** for working with **[Protobuf](https://protobuf.dev/)** and **[gRPC](https://grpc.io/)**.
 
-It is designed to be **code-first**, meaning that it is able to generate Protobuf codecs and .proto files directly from your Scala code.
+It is designed to be **code-first**, meaning that it is able to generate Protobuf codecs and .proto files directly from your Scala code without code generation.
 
 It also provides a **declarative way to define gRPC services** in Scala, a bit like [tapir](https://tapir.softwaremill.com/en/latest/) does for HTTP services. You can define messages, RPCs, and services in Scala, then generate clients and servers for them, using a variety of backends (direct style, Future, ZIO, fs2).
 
@@ -29,9 +29,10 @@ Now, we can derive a Protobuf codec for it.
 
 ```scala
 import proteus.*
-import zio.blocks.schema.*
 
-val codec = Schema.derived[Person].derive(ProtobufDeriver)
+given ProtobufDeriver = ProtobufDeriver
+
+val codec = ProtobufCodec.derived[Person]
 ```
 
 Let's use this codec to encode and decode a `Person` instance.
@@ -61,22 +62,20 @@ println(codec.render())
 
 Let's rewind and explain in detail what we just did.
 
-First we called `Schema.derived[Person]` to derive a `Schema` for the `Person` case class. Under the hood, Proteus uses `Schema` from the `zio-blocks` [library](https://github.com/zio/zio-blocks) to get some information about Scala types. Note that this library has no dependency (it does not depend on zio) and so is very lightweight.
-
-The code can be simplified further using the `derives` keyword:
-```scala
-case class Person(name: String, age: Int) derives Schema
-```
-With this `Schema`, Proteus can derive a `ProtobufCodec` for the `Person` case class. 
-
-For that, it requires a `ProtobufDeriver` instance.
-This is an object that defines how the derivation should work. You can use it to configure some derivation flags that will affect the produced schema, but also register custom instances and modifiers for specific types.
+First we created a `given` instance of `ProtobufDeriver`. This is an object that defines how the derivation should work.
+You can use it to configure derivation flags that will affect the produced schema, but also register custom instances and modifiers for specific types.
 Here we are just using `ProtobufDeriver`, which is the default instance.
 
-Note that we can use `Schema[Person]` without `.derived` since we already have a `Schema` instance for `Person`.
+Then, we called `ProtobufCodec.derived[Person]` to create a `ProtobufCodec` for the `Person` case class. It requires a `ProtobufDeriver` instance in scope, which is why we created one first.
+
+You can also use the `derives` keyword to create a `ProtobufCodec` for `Person` that will always be in scope (again, you need a `given ProtobufDeriver` instance in scope).
+```scala
+case class Person(name: String, age: Int) derives ProtobufCodec
+```
+If we do so, we can use `ProtobufCodec[Person]` without `.derived` since we already have a `ProtobufCodec` instance for `Person`.
 
 ```scala
-val codec: ProtobufCodec[Person] = Schema[Person].derive(ProtobufDeriver)
+val codec = ProtobufCodec[Person]
 ```
 
 That codec can now be used to `encode`, `decode`, and `render` the `Person` case class!
@@ -84,12 +83,27 @@ That codec can now be used to `encode`, `decode`, and `render` the `Person` case
 ::: tip Supported types
 Proteus derivation supports the following types:
 - Primitive types: `String`, `Int`, `Long`, `Float`, `Double`, `Boolean`
-- Collections: `List`, `Vector`, `Set`, `Map` (anything supported by zio-blocks)
+- Collections: `List`, `Vector`, `Set`, `Map` (anything supported by zio-blocks, see below)
 - Others: `Option`, `Array[Byte]` (mapped to `bytes` in Protobuf)
 - Case classes, sealed traits, enums
 - Recursive types
 - Opaque types
 :::
+
+## Under the hood
+
+Proteus uses a typeclass called `Schema` from the [zio-blocks](https://github.com/zio/zio-blocks) library to gather information about Scala types.
+Note that this library is very lightweight and has no dependencies (it does not require zio).
+
+`ProtobufCodec.derived` requires a `Schema` instance to function. If one is available in scope, it will use it; otherwise, it will derive one automatically.
+
+To improve compile-time efficiency, you should avoid deriving a `Schema` instance multiple times for the same type. By adding `derives Schema` to your case class, enum or sealed trait, a `Schema` instance will be created in the companion object and always be available in scope.
+
+```scala
+import zio.blocks.schema.*
+
+case class Person(name: String, age: Int) derives Schema
+```
 
 ## Where to go next?
 

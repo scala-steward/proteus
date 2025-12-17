@@ -1,16 +1,14 @@
 package proteus.examples.routeguide
 
-import _root_.zio.blocks.schema.Schema
-
 import proteus.*
 
 // Basic types
-case class Point(latitude: Int, longitude: Int) derives Schema, ProtobufCodec
-case class Rectangle(lo: Point, hi: Point) derives Schema, ProtobufCodec
+case class Point(latitude: Int, longitude: Int) derives ProtobufCodec
+case class Rectangle(lo: Point, hi: Point) derives ProtobufCodec
 
-case class Feature(name: String, location: Point) derives Schema, ProtobufCodec
-case class RouteNote(location: Point, message: String) derives Schema, ProtobufCodec
-case class RouteSummary(pointCount: Int, featureCount: Int, distance: Int, elapsedTime: Int) derives Schema, ProtobufCodec
+case class Feature(name: String, location: Point) derives ProtobufCodec
+case class RouteNote(location: Point, message: String) derives ProtobufCodec
+case class RouteSummary(pointCount: Int, featureCount: Int, distance: Int, elapsedTime: Int) derives ProtobufCodec
 
 given ProtobufDeriver = ProtobufDeriver
 

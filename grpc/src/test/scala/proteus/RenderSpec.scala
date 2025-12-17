@@ -7,10 +7,10 @@ import proteus.GrpcTestUtils.*
 
 object RenderSpec extends ZIOSpecDefault {
 
-  case class SharedMessage(value: String) derives Schema, ProtobufCodec
-  case class UnusedMessage(data: String) derives Schema, ProtobufCodec
-  case class RequestWithShared(id: Int, shared: SharedMessage) derives Schema, ProtobufCodec
-  case class ResponseWithShared(result: String, shared: SharedMessage) derives Schema, ProtobufCodec
+  case class SharedMessage(value: String) derives ProtobufCodec
+  case class UnusedMessage(data: String) derives ProtobufCodec
+  case class RequestWithShared(id: Int, shared: SharedMessage) derives ProtobufCodec
+  case class ResponseWithShared(result: String, shared: SharedMessage) derives ProtobufCodec
 
   given ProtobufDeriver = ProtobufDeriver
 
@@ -399,8 +399,8 @@ message ResponseWithShared {
         assertTrue(serviceRendered == expected)
       },
       test("should render RPC comments") {
-        case class CommentRequest(message: String) derives Schema, ProtobufCodec
-        case class CommentResponse(echo: String) derives Schema, ProtobufCodec
+        case class CommentRequest(message: String) derives ProtobufCodec
+        case class CommentResponse(echo: String) derives ProtobufCodec
 
         val commentedRpc       = Rpc.unary[CommentRequest, CommentResponse]("ProcessWithComment", "This RPC processes requests with special handling")
         val serviceWithComment = Service("test.package", "CommentService").rpc(commentedRpc)
@@ -430,8 +430,8 @@ message CommentResponse {
         assertTrue(renderedProto == expected)
       },
       test("should render service comments") {
-        case class ServiceRequest(data: String) derives Schema, ProtobufCodec
-        case class ServiceResponse(result: String) derives Schema, ProtobufCodec
+        case class ServiceRequest(data: String) derives ProtobufCodec
+        case class ServiceResponse(result: String) derives ProtobufCodec
 
         val testRpc            = Rpc.unary[ServiceRequest, ServiceResponse]("ProcessData")
         val serviceWithComment = Service("test.package", "CommentedService", "This service handles data processing operations")
@@ -804,8 +804,8 @@ option csharp_namespace = "Test";
         assertTrue(rendered == expected)
       },
       test("should handle multiple services with shared enums using fromServices") {
-        case class RequestWithPriority(priority: Priority, data: String) derives Schema, ProtobufCodec
-        case class ResponseWithPriority(priority: Priority, result: String) derives Schema, ProtobufCodec
+        case class RequestWithPriority(priority: Priority, data: String) derives ProtobufCodec
+        case class ResponseWithPriority(priority: Priority, result: String) derives ProtobufCodec
 
         val rpc1     = Rpc.unary[RequestWithPriority, ResponseWithPriority]("Method1")
         val rpc2     = Rpc.unary[ComplexRequest, ComplexResponse]("Method2")

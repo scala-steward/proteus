@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import scala.collection.immutable.HashMap
 import scala.collection.mutable
+import scala.compiletime.*
 import scala.util.control.NonFatal
 
 import com.google.protobuf.{CodedInputStream, CodedOutputStream}
@@ -115,13 +116,18 @@ object ProtobufCodec {
   def apply[A](using codec: ProtobufCodec[A]): ProtobufCodec[A] = codec
 
   /**
-    * Derives a codec for type `A` using the given deriver and schema.
+    * Derives a codec for type `A` using the given deriver.
+    * If a Schema for `A` is available, it will be used, otherwise a Schema will be derived too.
     *
     * @param deriver the deriver to use.
-    * @param schema a Schema for type `A`.
     */
-  inline def derived[A](using deriver: ProtobufDeriver, schema: Schema[A]): ProtobufCodec[A] =
+  inline def derived[A](using deriver: ProtobufDeriver): ProtobufCodec[A] = {
+    val schema = summonFrom {
+      case schema: Schema[A] => schema
+      case _                 => Schema.derived[A]
+    }
     schema.derive(deriver)
+  }
 
   private val pool = new ThreadLocal[(Registers, AtomicBoolean)] {
     override def initialValue(): (Registers, AtomicBoolean) = (Registers(RegisterOffset.Zero), new AtomicBoolean(false))

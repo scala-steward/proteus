@@ -16,12 +16,12 @@ In order to use it, you will need to add the following dependency to your `build
 ## Defining services
 
 To define an RPC, you first need to define two case classes, one for the request and one for the response.
-These case classes require both a `Schema` and a `ProtobufCodec` instance, which can be derived automatically using the `derives` keyword provided that a `given ProtobufDeriver` instance is in scope. Codecs for types used in the request and response will be derived automatically as well.
+These case classes require a `ProtobufCodec` instance, which can be derived automatically using the `derives` keyword provided that a `given ProtobufDeriver` instance is in scope. Codecs for types used in the request and response will be derived automatically as well.
 ```scala
 given ProtobufDeriver = ProtobufDeriver // your deriver instance
 
-case class HelloRequest(name: String) derives Schema, ProtobufCodec
-case class HelloReply(message: String) derives Schema, ProtobufCodec
+case class HelloRequest(name: String) derives ProtobufCodec
+case class HelloReply(message: String) derives ProtobufCodec
 ```
 
 Then, you can define the RPC using the `Rpc` case class.
