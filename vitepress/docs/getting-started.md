@@ -111,6 +111,6 @@ There will be times when we want the generated Protobuf schema to be different f
 
 The [gRPC services](/grpc-services) section details how to define complete gRPC services in Scala and use them to create clients and servers using the backend of your choice.
 
-Even if we don't use .proto files to generate our code, it is still useful to have them, whether it's for documenting our API or checking what changes were made to the schema. The [Proto file generation](/proto-file-generation) section details how to generate .proto files at compile time.
+Even if we don't use .proto files to generate our code, it is still useful to have them, whether it's for documenting our API or checking what changes were made to the schema. The [Proto file generation](/proto-file-generation) section details how to generate .proto files from your codecs.
 
 Finally, take a look at the [examples](https://github.com/ghostdogpr/proteus/tree/main/examples/src/main/scala/proteus/examples) in the GitHub repository for more detailed examples.
