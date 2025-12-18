@@ -145,7 +145,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                       new Discriminator[A] {
                         def discriminate(a: A): Int = o.discriminator.discriminate(to(a).asInstanceOf[inner])
                       },
-                      from(o.defaultValue.asInstanceOf[t.Origin]),
+                      // try to transform null to the target type in case the transform function can handle it
+                      try from(o.defaultValue.asInstanceOf[t.Origin])
+                      catch { case _: Exception => null.asInstanceOf[A] },
                       o.comment
                     )
                   case ProtobufCodec.Message(_, Array(o: OneOfField[?]), _, _, _, _, true, _, _)                                            =>
