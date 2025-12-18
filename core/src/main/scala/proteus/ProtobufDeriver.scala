@@ -137,7 +137,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                           }
                         field.copy(
                           id = caseId,
-                          codec = ProtobufCodec.Transform(t.from, t.to, field.codec.asInstanceOf[ProtobufCodec[t.Origin]]),
+                          codec = ProtobufCodec.Transform(from, to, field.codec.asInstanceOf[ProtobufCodec[t.Origin]]),
                           register = register
                         )
                       },
@@ -145,6 +145,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                       new Discriminator[A] {
                         def discriminate(a: A): Int = o.discriminator.discriminate(to(a).asInstanceOf[inner])
                       },
+                      from(o.defaultValue.asInstanceOf[t.Origin]),
                       o.comment
                     )
                   case ProtobufCodec.Message(_, Array(o: OneOfField[?]), _, _, _, _, true, _, _)                                            =>
@@ -163,6 +164,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                       },
                       register,
                       o.discriminator,
+                      o.defaultValue,
                       o.comment
                     )
                   case ProtobufCodec.Optional(codec) if flags.contains(DerivationFlag.OptionalAsOneOf)                                      =>
@@ -185,6 +187,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                           case Some(_) => 1
                         }
                       },
+                      None,
                       getComment(field.term.modifiers)
                     )
                   case instance                                                                                                             =>
@@ -310,6 +313,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
               }.toArray,
               register.asInstanceOf[Register[Any]],
               discriminator,
+              null.asInstanceOf[A],
               getComment(modifiers)
             )
             val codec              = ProtobufCodec.Message(

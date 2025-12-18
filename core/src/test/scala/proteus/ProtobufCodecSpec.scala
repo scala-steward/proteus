@@ -133,6 +133,35 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         }
 
         assert(results.map(_.contact))(equalTo(variants))
+      },
+      test("oneOf field variants with handling for null value") {
+        enum ContactInfo derives Schema {
+          case Empty
+          case Email(address: String)
+          case Phone(number: String)
+          case Social(platform: String, handle: String)
+        }
+
+        val customCodec: ProtobufCodec[ContactInfo] = Schema[ContactInfo]
+          .derive(deriver.modifier[ContactInfo](oneOf(OneOfFlag.Inline)))
+          .transform(
+            {
+              case null  => ContactInfo.Empty
+              case other => other
+            },
+            identity
+          )
+
+        case class ContactMessage(contact: ContactInfo) derives Schema
+        val customDeriver = deriver.instance(customCodec)
+        val codec1        = Schema[ContactMessage].derive(customDeriver.modifier[ContactMessage]("contact", excluded))
+        val codec2        = Schema[ContactMessage].derive(customDeriver)
+
+        val original = ContactMessage(ContactInfo.Empty)
+        val encoded  = codec1.encode(original)
+        val decoded  = codec2.decode(encoded)
+
+        assert(decoded)(equalTo(original))
       }
     ),
     suite("DateTime Tests")(

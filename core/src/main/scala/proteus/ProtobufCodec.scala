@@ -235,6 +235,7 @@ object ProtobufCodec {
       cases: Array[SimpleField[?]],
       register: Register[Any],
       discriminator: Discriminator[A],
+      defaultValue: A,
       comment: Option[String] = None
     ) extends MessageField[A] {
       private[proteus] def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
@@ -584,7 +585,7 @@ object ProtobufCodec {
       if (!visited(i)) {
         m.fields(i) match {
           case field: SimpleField[?]   => setToRegister(registers, offset, field.register, field.defaultValue)
-          case field: OneOfField[?]    => setToRegister(registers, offset, field.register, null)
+          case field: OneOfField[?]    => setToRegister(registers, offset, field.register, field.defaultValue)
           case field: ExcludedField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
         }
       } else if (m.mayUseBuilder) {
