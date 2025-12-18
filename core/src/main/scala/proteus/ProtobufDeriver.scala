@@ -2,8 +2,6 @@ package proteus
 
 import scala.compiletime.*
 import scala.deriving.Mirror
-import scala.util.boundary
-import scala.util.boundary.break
 
 import zio.blocks.schema.*
 import zio.blocks.schema.binding.*
@@ -573,26 +571,21 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
           case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
         }
       case ProtobufCodec.Message(_, fields, constructor, _, _, _, _, _, _) =>
-        boundary {
-          val registers = Registers(constructor.usedRegisters)
-          fields.foreach {
-            case field: SimpleField[?]   =>
+        val registers = Registers(constructor.usedRegisters)
+        fields.foreach {
+          case field: SimpleField[?]   =>
+            val defaultValue = getDefaultValue(using field.codec)
+            setToRegister(registers, RegisterOffset.Zero, field.register, defaultValue)
+          case oneOf: OneOfField[?]    =>
+            oneOf.cases.headOption.foreach { field =>
               val defaultValue = getDefaultValue(using field.codec)
-              if (defaultValue == null) break(null.asInstanceOf[A])
               setToRegister(registers, RegisterOffset.Zero, field.register, defaultValue)
-            case oneOf: OneOfField[?]    =>
-              oneOf.cases.headOption.foreach { field =>
-                val defaultValue = getDefaultValue(using field.codec)
-                if (defaultValue == null) break(null.asInstanceOf[A])
-                setToRegister(registers, RegisterOffset.Zero, field.register, defaultValue)
-              }
-            case field: ExcludedField[?] =>
-              val defaultValue = field.defaultValue
-              if (defaultValue == null) break(null.asInstanceOf[A])
-              setToRegister(registers, RegisterOffset.Zero, field.register, defaultValue)
-          }
-          constructor.construct(registers, RegisterOffset.Zero)
+            }
+          case field: ExcludedField[?] =>
+            val defaultValue = field.defaultValue
+            setToRegister(registers, RegisterOffset.Zero, field.register, defaultValue)
         }
+        constructor.construct(registers, RegisterOffset.Zero)
       case ProtobufCodec.Optional(_)                                       =>
         None.asInstanceOf[A]
       case c: ProtobufCodec.Enum[A]                                        =>
@@ -602,11 +595,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
       case ProtobufCodec.Repeated(_, constructor, _, _)                    =>
         constructor.resultObject(constructor.newObjectBuilder()).asInstanceOf[A]
       case ProtobufCodec.Transform(from, _, codec)                         =>
-        val inner = getDefaultValue(using codec)
-        if (inner == null) null.asInstanceOf[A]
-        else
-          try from(inner)
-          catch { case _: Exception => null.asInstanceOf[A] }
+        try from(getDefaultValue(using codec))
+        catch { case _: Exception => null.asInstanceOf[A] }
       case c: ProtobufCodec.RecursiveMessage[A]                            =>
         getDefaultValue(using c.codec)
       case ProtobufCodec.Bytes                                             =>
