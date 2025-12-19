@@ -136,7 +136,10 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                         field.copy(
                           id = caseId,
                           codec = ProtobufCodec.Transform(from, to, field.codec.asInstanceOf[ProtobufCodec[t.Origin]]),
-                          register = register
+                          register = register,
+                          defaultValue =
+                            try from(field.defaultValue.asInstanceOf[t.Origin])
+                            catch { case _: Exception => null.asInstanceOf[A] }
                         )
                       },
                       register,
@@ -176,7 +179,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                     builder += OneOfField(
                       getFieldName(field.term.name, field.term.modifiers),
                       Array(
-                        SimpleField(s"no_$name", emptyId, Empty.emptyCodec.transform(_ => None, _ => Empty()), register, null, None),
+                        SimpleField(s"no_$name", emptyId, Empty.emptyCodec.transform(_ => None, _ => Empty()), register, None, None),
                         SimpleField(s"${name}_value", valueId, codec.transform(Some(_), _.get), register, null, None)
                       ),
                       register,
@@ -314,7 +317,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                   fieldId,
                   if (nestedOneOf) c.instance.makeNested else c.instance,
                   register.asInstanceOf[Register[Any]],
-                  null,
+                  null.asInstanceOf[c.instance.Focus],
                   getComment(c.term.modifiers)
                 )
                 item

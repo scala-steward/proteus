@@ -197,7 +197,7 @@ object ProtobufCodec {
       id: Int,
       codec: ProtobufCodec[A],
       register: Register[Any],
-      defaultValue: Any,
+      defaultValue: A,
       comment: Option[String] = None
     ) extends MessageField[A] {
       private[proteus] def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
@@ -275,7 +275,7 @@ object ProtobufCodec {
     /**
       * Represents an excluded field of a message.
       */
-    final case class ExcludedField[A](register: Register[Any], defaultValue: Any) extends MessageField[A] {
+    final case class ExcludedField[A](register: Register[Any], defaultValue: A) extends MessageField[A] {
       private[proteus] def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = null
 
       /**
