@@ -127,10 +127,16 @@ lazy val examples = project
   .settings(
     libraryDependencies ++=
       Seq(
-        "io.grpc" % "grpc-netty"    % grpcVersion,
-        "io.grpc" % "grpc-services" % grpcVersion
+        "io.grpc"               % "grpc-netty"        % grpcVersion,
+        "io.grpc"               % "grpc-services"     % grpcVersion,
+        "com.thesamet.scalapb" %% "scalapb-runtime"   % scalapb.compiler.Version.scalapbVersion % "protobuf",
+        "io.scalaland"         %% "chimney-protobufs" % chimneyVersion
       ),
-    generateProtos := (Compile / runMain).toTask(" proteus.examples.greeter.Protogen").value
+    Compile / PB.targets := Seq(
+      scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
+    ),
+    scalacOptions ++= Seq("-Wconf:msg=(discarded non-Unit):silent"),
+    generateProtos       := (Compile / runMain).toTask(" proteus.examples.greeter.Protogen").value
   )
   .dependsOn(zioGrpc, fs2Grpc)
 

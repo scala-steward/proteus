@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package proto;
+
+import "scalapb/scalapb.proto";
+
+option (scalapb.options) = {
+    preserve_unknown_fields: false
+};
+
+message Movie {
+    reserved 2;
+
+    int32 id = 1;
+    repeated Genre genres = 3;
+    string title = 4;
+    int32 duration = 5;
+    ReleaseStatus released_status = 6;
+}
+
+enum Genre {
+    GENRE_COMEDY = 0;
+    GENRE_DRAMA = 1;
+    GENRE_HORROR = 2;
+}
+
+message ReleaseStatus {
+    message Released {
+        int64 release_date = 1;
+    }
+
+    message Unreleased {
+        optional int64 planned_release_date = 1;
+    }
+
+    oneof value {
+        Released released = 1;
+        Unreleased unreleased = 2;
+    }
+}
