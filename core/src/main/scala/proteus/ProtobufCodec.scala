@@ -383,7 +383,7 @@ object ProtobufCodec {
     private[proteus] def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter.Message =
       wrapEncode(name) {
         deconstructor.deconstruct(registers, offset, a)
-        val nextOffset = RegisterOffset.add(offset, usedRegisters)
+        val nextOffset = offset + usedRegisters
         val builder    = List.newBuilder[ProtobufWriter]
         var i          = 0
         var size       = 0
@@ -638,7 +638,7 @@ object ProtobufCodec {
   private def handleMessage[A](m: Message[A], registers: Registers, offset: RegisterOffset)(using input: CodedInputStream): A =
     wrapDecode(m.name) {
       val visited    = new Array[Boolean](m.fields.length)
-      val nextOffset = RegisterOffset.add(offset, m.constructor.usedRegisters)
+      val nextOffset = offset + m.constructor.usedRegisters
 
       def handleRepeated[C[_], E](r: Repeated[C, E], field: IndexedField, tag: Int): C[E] = {
         val register = field.field.register.asInstanceOf[Register.Object[_ <: AnyRef]]
