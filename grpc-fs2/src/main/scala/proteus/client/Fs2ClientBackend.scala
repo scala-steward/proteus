@@ -65,7 +65,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     val methodDescriptor = rpc.toMethodDescriptor(service)
     val clientOptions    = ClientOptions.default.configureCallOptions(options)
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, clientOptions)
-      .map(call => call.unaryToUnaryCallTrailers(_, _))
+      .map(_.unaryToUnaryCallTrailers)
   }
 
   def clientWithMetadata[Rpcs, Request, Response](
@@ -76,7 +76,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     val methodDescriptor = rpc.toMethodDescriptor(service)
     val clientOptions    = ClientOptions.default.configureCallOptions(options)
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, clientOptions)
-      .map(call => call.streamingToUnaryCallTrailers(_, _))
+      .map(_.streamingToUnaryCallTrailers)
   }
 
   def clientWithMetadata[Rpcs, Request, Response](
@@ -87,7 +87,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     val methodDescriptor = rpc.toMethodDescriptor(service)
     val clientOptions    = ClientOptions.default.configureCallOptions(options)
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, clientOptions)
-      .map(call => call.unaryToStreamingCall(_, _))
+      .map(_.unaryToStreamingCall)
   }
 
   def clientWithMetadata[Rpcs, Request, Response](
@@ -98,7 +98,7 @@ class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F])
     val methodDescriptor = rpc.toMethodDescriptor(service)
     val clientOptions    = ClientOptions.default.configureCallOptions(options)
     Fs2ClientCall[F](channel, methodDescriptor, dispatcher, clientOptions)
-      .map(call => call.streamingToStreamingCall(_, _))
+      .map(_.streamingToStreamingCall)
   }
 }
 

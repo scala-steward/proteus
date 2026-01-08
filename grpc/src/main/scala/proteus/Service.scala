@@ -47,7 +47,7 @@ case class Service[Rpcs] private (
   private lazy val typeReferences = toProtoIR.flatMap(_.collectTypeReferences).toSet
 
   private lazy val filteredTypes          = {
-    val dependencyTypes = allDependencies.filter(_.hasAnyOf(typeReferences)).flatMap(_.types).map(_.name).toSet
+    val dependencyTypes = allDependencies.filter(_.hasAnyOf(typeReferences)).flatMap(_.types).map(_.name)
     toProtoIR.filterNot(d => dependencyTypes.contains(d.name))
   }
   private lazy val filteredTypeReferences = filteredTypes.flatMap(_.collectTypeReferences).toSet
@@ -139,7 +139,7 @@ case class Service[Rpcs] private (
     toProtoIR
       .groupBy(_.name)
       .view
-      .mapValues(_.map(Renderer.renderTopLevelDef).map(Text.renderText).toList.distinct)
+      .mapValues(_.map(Renderer.renderTopLevelDef).map(Text.renderText).distinct)
       .toMap
       .filter((_, values) => values.length > 1)
 }

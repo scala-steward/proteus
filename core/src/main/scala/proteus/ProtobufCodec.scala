@@ -725,7 +725,7 @@ object ProtobufCodec {
     * Represents a recursive message type.
     */
   final case class RecursiveMessage[A](thunk: () => Message[A]) extends ProtobufCodec[A] {
-    lazy val codec = thunk()
+    lazy val codec: Message[A] = thunk()
   }
 
   /**
@@ -839,7 +839,7 @@ object ProtobufCodec {
         }
       } else if (m.mayUseBuilder) {
         // unpacked repeated fields use a builder that we need to convert to the final object
-        val register = m.fields(i) match {
+        m.fields(i) match {
           case field: SimpleField[_] if field.mayUseBuilder =>
             def loop[A](codec: ProtobufCodec[A]): A =
               codec match {

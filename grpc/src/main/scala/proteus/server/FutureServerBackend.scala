@@ -29,15 +29,13 @@ class FutureServerBackend[Context](interceptor: ServerContextInterceptor[Future,
                   interceptor.unary(ctx => logic(message, ctx))(using rpc.requestCodec, rpc.responseCodec)(message)(
                     RequestResponseMetadata(headers, responseMetadata)
                   )
-                futureResponse.onComplete { result =>
-                  result match {
-                    case scala.util.Success(response) =>
-                      call.sendHeaders(new Metadata())
-                      call.sendMessage(response)
-                      call.close(Status.OK, responseMetadata)
-                    case scala.util.Failure(ex)       =>
-                      call.close(Status.INTERNAL.withDescription(ex.getMessage).withCause(ex), new Metadata())
-                  }
+                futureResponse.onComplete {
+                  case scala.util.Success(response) =>
+                    call.sendHeaders(new Metadata())
+                    call.sendMessage(response)
+                    call.close(Status.OK, responseMetadata)
+                  case scala.util.Failure(ex)       =>
+                    call.close(Status.INTERNAL.withDescription(ex.getMessage).withCause(ex), new Metadata())
                 }
               }
             }

@@ -25,7 +25,7 @@ lazy val timeCodec: ProtobufCodec[OffsetDateTime] =
     .derived[Long]
     .transform[OffsetDateTime](
       millis => OffsetDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC),
-      _.toInstant().toEpochMilli().toLong
+      _.toInstant().toEpochMilli()
     )
 
 lazy val durationCodec: ProtobufCodec[Duration] =

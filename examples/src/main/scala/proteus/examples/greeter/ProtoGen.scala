@@ -2,6 +2,6 @@ package proteus.examples.greeter
 
 import proteus.*
 
-object Protogen extends App {
+object ProtoGen extends App {
   greeterService.renderToFile(Nil, "examples/src/main/proto")
 }

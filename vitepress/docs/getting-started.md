@@ -9,7 +9,7 @@ It also provides a **declarative way to define gRPC services** in Scala, a bit l
 It is available for Scala 3.3.x LTS and later versions. The core module is available for both Scala JVM and Scala.js.
 
 ::: warning Why not use code generation?
-Let's address the elephant in the room: why not use code generation like everyone else? Check the [FAQ](/faq#why-not-using-code-generation) for a detailed answer.
+Let's address the elephant in the room: why not use code generation like everyone else? Check the [FAQ](/faq#why-not-use-code-generation) for a detailed answer.
 :::
 
 ## Our first Protobuf codec

@@ -18,10 +18,10 @@ final case class Dependency(
   types: ListSet[ProtoIR.TopLevelDef],
   dependencies: List[Dependency]
 ) {
-  private lazy val typeReferences                       = types.flatMap(_.collectTypeReferences).toSet
+  private lazy val typeReferences                       = types.flatMap(_.collectTypeReferences)
   private[proteus] val allDependencies: Set[Dependency] = dependencies.toSet ++ dependencies.flatMap(_.allDependencies)
   private[proteus] lazy val filteredDependencies        = allDependencies.filter(_.hasAnyOf(typeReferences))
-  private lazy val dependencyTypes                      = filteredDependencies.flatMap(_.types).toSet
+  private lazy val dependencyTypes                      = filteredDependencies.flatMap(_.types)
   private lazy val filteredTypes                        = types -- dependencyTypes
 
   private[proteus] lazy val topLevelFqns: Map[String, String] =

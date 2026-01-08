@@ -464,11 +464,11 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
         val itemCodec: ProtobufCodec[Item] = Schema[Item2]
           .derive(deriver.modifier[Item2](oneOf(OneOfFlag.Inline)))
           .transform(
-            _ match {
+            {
               case Item2.A => Item.A
               case Item2.B => Item.B
             },
-            _ match {
+            {
               case Item.A => Item2.A
               case Item.B => Item2.B
             }
