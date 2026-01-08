@@ -33,15 +33,12 @@ sealed trait ProtobufCodec[A] {
   final def encode(value: A): Array[Byte] =
     wrapEncode(getName, prependOnExisting = false) {
       withRegisters { registers =>
-        val writer = toProtoWriter(this, value, -1, registers, RegisterOffset.Zero, alwaysEncode = true)
-        val size   = writer match {
-          case f: ProtobufWriter.Message      => f.innerSize
-          case f: ProtobufWriter.IntPrimitive => f.size
-          case _                              => throw new Exception(s"Invalid root writer: $writer")
-        }
+        val cache  = new WriterCache()
+        val size   = computeSize(this, value, -1, registers, alwaysEncode = true, cache)
         val bytes  = new Array[Byte](size)
         val output = CodedOutputStream.newInstance(bytes)
-        writer.write(using output)
+        cache.reset()
+        write(this, value, -1, registers, alwaysEncode = true, cache)(using output)
         bytes
       }
     }
@@ -209,12 +206,6 @@ object ProtobufCodec {
       defaultValue: A,
       comment: Option[String] = None
     ) extends MessageField[A] {
-      private[proteus] def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
-        val res = getFromRegister(registers, offset, register).asInstanceOf[A]
-        wrapEncode(s"$name#$id") {
-          ProtobufCodec.toProtoWriter(codec, res, id, registers, nextOffset, alwaysEncode = false)
-        }
-      }
 
       /**
         * Converts the message field to its protobuf IR representation.
@@ -247,18 +238,6 @@ object ProtobufCodec {
       defaultValue: A,
       comment: Option[String] = None
     ) extends MessageField[A] {
-      private[proteus] def toProtoWriter(registers: Registers, offset: RegisterOffset, nextOffset: RegisterOffset): ProtobufWriter = {
-        val res = getFromRegister(registers, offset, register).asInstanceOf[A]
-        if (res == null) null
-        else {
-          wrapEncode(name) {
-            val field = cases(discriminator.discriminate(res))
-            wrapEncode(s"${field.name}#${field.id}") {
-              ProtobufCodec.toProtoWriter(field.codec, res.asInstanceOf[field.codec.Focus], field.id, registers, nextOffset, alwaysEncode = true)
-            }
-          }
-        }
-      }
 
       /**
         * Converts the message field to its protobuf IR representation.
@@ -298,26 +277,151 @@ object ProtobufCodec {
     * Represents a primitive type supported by protobuf.
     */
   final case class Primitive[A](primitiveType: PrimitiveType[A]) extends ProtobufCodec[A] {
-    private[proteus] def toProtoWriter(a: A, id: Int, alwaysEncode: Boolean): ProtobufWriter =
+    private[proteus] def computeSizeFromRegisters(
+      register: Register[A],
+      id: Int,
+      registers: Registers,
+      offset: RegisterOffset,
+      alwaysEncode: Boolean
+    ): Int =
+      primitiveType match {
+        case _: PrimitiveType.Int     =>
+          val value = register.asInstanceOf[Register.Int].get(registers, offset)
+          if (value == 0 && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeInt32SizeNoTag(value)
+          else CodedOutputStream.computeInt32Size(id, value)
+        case _: PrimitiveType.Long    =>
+          val value = register.asInstanceOf[Register.Long].get(registers, offset)
+          if (value == 0L && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeInt64SizeNoTag(value)
+          else CodedOutputStream.computeInt64Size(id, value)
+        case _: PrimitiveType.Boolean =>
+          val value = register.asInstanceOf[Register.Boolean].get(registers, offset)
+          if (!value && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeBoolSizeNoTag(value)
+          else CodedOutputStream.computeBoolSize(id, value)
+        case _: PrimitiveType.String  =>
+          val value = register.asInstanceOf[Register.Object[String]].get(registers, offset)
+          if (value == "" && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeStringSizeNoTag(value)
+          else CodedOutputStream.computeStringSize(id, value)
+        case _: PrimitiveType.Double  =>
+          val value = register.asInstanceOf[Register.Double].get(registers, offset)
+          if (value == 0d && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeDoubleSizeNoTag(value)
+          else CodedOutputStream.computeDoubleSize(id, value)
+        case _: PrimitiveType.Float   =>
+          val value = register.asInstanceOf[Register.Float].get(registers, offset)
+          if (value == 0f && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeFloatSizeNoTag(value)
+          else CodedOutputStream.computeFloatSize(id, value)
+        case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
+      }
+
+    private[proteus] def computeSize(a: A, id: Int, alwaysEncode: Boolean): Int =
       primitiveType match {
         case _: PrimitiveType.Int     =>
           val value: Int = a
-          if (value == 0 && !alwaysEncode) null else internal.ProtobufWriter.IntPrimitive(value, id)
+          if (value == 0 && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeInt32SizeNoTag(value)
+          else CodedOutputStream.computeInt32Size(id, value)
         case _: PrimitiveType.Long    =>
           val value: Long = a
-          if (value == 0L && !alwaysEncode) null else internal.ProtobufWriter.LongPrimitive(value, id)
+          if (value == 0L && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeInt64SizeNoTag(value)
+          else CodedOutputStream.computeInt64Size(id, value)
         case _: PrimitiveType.Boolean =>
           val value: Boolean = a
-          if (!value && !alwaysEncode) null else internal.ProtobufWriter.BoolPrimitive(value, id)
+          if (!value && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeBoolSizeNoTag(value)
+          else CodedOutputStream.computeBoolSize(id, value)
         case _: PrimitiveType.String  =>
           val value: String = a
-          if (value == "" && !alwaysEncode) null else internal.ProtobufWriter.StringPrimitive(value, id)
+          if (value == "" && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeStringSizeNoTag(value)
+          else CodedOutputStream.computeStringSize(id, value)
         case _: PrimitiveType.Double  =>
           val value: Double = a
-          if (value == 0d && !alwaysEncode) null else internal.ProtobufWriter.DoublePrimitive(value, id)
+          if (value == 0d && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeDoubleSizeNoTag(value)
+          else CodedOutputStream.computeDoubleSize(id, value)
         case _: PrimitiveType.Float   =>
           val value: Float = a
-          if (value == 0f && !alwaysEncode) null else internal.ProtobufWriter.FloatPrimitive(value, id)
+          if (value == 0f && !alwaysEncode) 0
+          else if (id == -1) CodedOutputStream.computeFloatSizeNoTag(value)
+          else CodedOutputStream.computeFloatSize(id, value)
+        case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
+      }
+
+    private[proteus] def writeFromRegisters(register: Register[A], id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean)(
+      using output: CodedOutputStream
+    ): Unit =
+      primitiveType match {
+        case _: PrimitiveType.Int     =>
+          val value = register.asInstanceOf[Register.Int].get(registers, offset)
+          if (value != 0 || alwaysEncode) {
+            if (id == -1) output.writeInt32NoTag(value) else output.writeInt32(id, value)
+          }
+        case _: PrimitiveType.Long    =>
+          val value = register.asInstanceOf[Register.Long].get(registers, offset)
+          if (value != 0L || alwaysEncode) {
+            if (id == -1) output.writeInt64NoTag(value) else output.writeInt64(id, value)
+          }
+        case _: PrimitiveType.Boolean =>
+          val value = register.asInstanceOf[Register.Boolean].get(registers, offset)
+          if (value || alwaysEncode) {
+            if (id == -1) output.writeBoolNoTag(value) else output.writeBool(id, value)
+          }
+        case _: PrimitiveType.String  =>
+          val value = register.asInstanceOf[Register.Object[String]].get(registers, offset)
+          if (value != "" || alwaysEncode) {
+            if (id == -1) output.writeStringNoTag(value) else output.writeString(id, value)
+          }
+        case _: PrimitiveType.Double  =>
+          val value = register.asInstanceOf[Register.Double].get(registers, offset)
+          if (value != 0d || alwaysEncode) {
+            if (id == -1) output.writeDoubleNoTag(value) else output.writeDouble(id, value)
+          }
+        case _: PrimitiveType.Float   =>
+          val value = register.asInstanceOf[Register.Float].get(registers, offset)
+          if (value != 0f || alwaysEncode) {
+            if (id == -1) output.writeFloatNoTag(value) else output.writeFloat(id, value)
+          }
+        case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
+      }
+
+    private[proteus] def write(a: A, id: Int, alwaysEncode: Boolean)(using output: CodedOutputStream): Unit =
+      primitiveType match {
+        case _: PrimitiveType.Int     =>
+          val value: Int = a
+          if (value != 0 || alwaysEncode) {
+            if (id == -1) output.writeInt32NoTag(value) else output.writeInt32(id, value)
+          }
+        case _: PrimitiveType.Long    =>
+          val value: Long = a
+          if (value != 0L || alwaysEncode) {
+            if (id == -1) output.writeInt64NoTag(value) else output.writeInt64(id, value)
+          }
+        case _: PrimitiveType.Boolean =>
+          val value: Boolean = a
+          if (value || alwaysEncode) {
+            if (id == -1) output.writeBoolNoTag(value) else output.writeBool(id, value)
+          }
+        case _: PrimitiveType.String  =>
+          val value: String = a
+          if (value != "" || alwaysEncode) {
+            if (id == -1) output.writeStringNoTag(value) else output.writeString(id, value)
+          }
+        case _: PrimitiveType.Double  =>
+          val value: Double = a
+          if (value != 0d || alwaysEncode) {
+            if (id == -1) output.writeDoubleNoTag(value) else output.writeDouble(id, value)
+          }
+        case _: PrimitiveType.Float   =>
+          val value: Float = a
+          if (value != 0f || alwaysEncode) {
+            if (id == -1) output.writeFloatNoTag(value) else output.writeFloat(id, value)
+          }
         case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
       }
   }
@@ -336,9 +440,18 @@ object ProtobufCodec {
     val indexesByValue: HashMap[A, Int]  = HashMap.from(values.map(v => (v.value, v.index)))
     val namesByValue: HashMap[A, String] = HashMap.from(values.map(v => (v.value, v.name)))
 
-    private[proteus] def toProtoWriter(a: A, id: Int, alwaysEncode: Boolean): ProtobufWriter.IntPrimitive = {
+    private[proteus] def computeSize(a: A, id: Int, alwaysEncode: Boolean): Int = {
       val index = indexesByValue(a)
-      if (index == 0 && !alwaysEncode) null else internal.ProtobufWriter.IntPrimitive(index, id)
+      if (index == 0 && !alwaysEncode) 0
+      else if (id == -1) CodedOutputStream.computeInt32SizeNoTag(index)
+      else CodedOutputStream.computeInt32Size(id, index)
+    }
+
+    private[proteus] def write(a: A, id: Int, alwaysEncode: Boolean)(using output: CodedOutputStream): Unit = {
+      val index = indexesByValue(a)
+      if (index != 0 || alwaysEncode) {
+        if (id == -1) output.writeInt32NoTag(index) else output.writeInt32(id, index)
+      }
     }
 
     /**
@@ -387,26 +500,104 @@ object ProtobufCodec {
     })
     private[proteus] val mayUseBuilder: Boolean = simpleFields.exists(_.mayUseBuilder)
 
-    private[proteus] def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter.Message =
+    private[proteus] def computeSize(a: A, id: Int, registers: Registers, cache: WriterCache): Int =
       wrapEncode(name) {
+        val offset    = cache.getOffset()
         deconstructor.deconstruct(registers, offset, a)
-        val nextOffset = offset + usedRegisters
-        val builder    = List.newBuilder[ProtobufWriter]
-        var i          = 0
-        var size       = 0
+        cache.addOffset(usedRegisters)
+        val cacheSlot = if (id != -1) cache.reserveSize() else -1
+        var i         = 0
+        var innerSize = 0
         while (i < fields.length) {
-          val res = fields(i) match {
-            case field: SimpleField[?]   => field.toProtoWriter(registers, offset, nextOffset)
-            case field: OneOfField[?]    => field.toProtoWriter(registers, offset, nextOffset)
-            case field: ExcludedField[?] => null
+          val fieldSize = fields(i) match {
+            case field: SimpleField[?]   =>
+              wrapEncode(s"${field.name}#${field.id}") {
+                ProtobufCodec.computeSizeFromRegisters(
+                  field.codec,
+                  field.register.asInstanceOf[Register[field.codec.Focus]],
+                  field.id,
+                  registers,
+                  offset,
+                  alwaysEncode = false,
+                  cache
+                )
+              }
+            case field: OneOfField[a]    =>
+              val res = getFromRegister(registers, offset, field.register).asInstanceOf[a]
+              if (res == null) 0
+              else {
+                wrapEncode(field.name) {
+                  val simpleField = field.cases(field.discriminator.discriminate(res))
+                  wrapEncode(s"${simpleField.name}#${simpleField.id}") {
+                    ProtobufCodec.computeSize(
+                      simpleField.codec,
+                      res.asInstanceOf[simpleField.codec.Focus],
+                      simpleField.id,
+                      registers,
+                      alwaysEncode = true,
+                      cache
+                    )
+                  }
+                }
+              }
+            case field: ExcludedField[?] => 0
           }
-          if (res ne null) {
-            builder += res
-            size += res.size
+          innerSize += fieldSize
+          i += 1
+        }
+        if (id == -1) {
+          innerSize
+        } else {
+          cache.fillSize(cacheSlot, innerSize)
+          CodedOutputStream.computeUInt32Size(id, innerSize) + innerSize
+        }
+      }
+
+    private[proteus] def write(id: Int, registers: Registers, cache: WriterCache)(using output: CodedOutputStream): Unit =
+      wrapEncode(name) {
+        val offset = cache.getOffset()
+        cache.addOffset(usedRegisters)
+        if (id != -1) {
+          val innerSize = cache.nextSize()
+          output.writeTag(id, 2)
+          output.writeUInt32NoTag(innerSize)
+        }
+        var i      = 0
+        while (i < fields.length) {
+          fields(i) match {
+            case field: SimpleField[?]   =>
+              wrapEncode(s"${field.name}#${field.id}") {
+                ProtobufCodec.writeFromRegisters(
+                  field.codec,
+                  field.register.asInstanceOf[Register[field.codec.Focus]],
+                  field.id,
+                  registers,
+                  offset,
+                  alwaysEncode = false,
+                  cache
+                )
+              }
+            case field: OneOfField[a]    =>
+              val res = getFromRegister(registers, offset, field.register).asInstanceOf[a]
+              if (res != null) {
+                wrapEncode(field.name) {
+                  val simpleField = field.cases(field.discriminator.discriminate(res))
+                  wrapEncode(s"${simpleField.name}#${simpleField.id}") {
+                    ProtobufCodec.write(
+                      simpleField.codec,
+                      res.asInstanceOf[simpleField.codec.Focus],
+                      simpleField.id,
+                      registers,
+                      alwaysEncode = true,
+                      cache
+                    )
+                  }
+                }
+              }
+            case field: ExcludedField[?] => ()
           }
           i += 1
         }
-        internal.ProtobufWriter.Message(id, builder.result(), size)
       }
 
     /**
@@ -448,64 +639,36 @@ object ProtobufCodec {
   /**
     * Represents a repeated type.
     */
-  final case class Repeated[C[_], E](
-    element: ProtobufCodec[E],
-    constructor: SeqConstructor[C],
-    deconstructor: SeqDeconstructor[C],
-    packed: Boolean
-  ) extends ProtobufCodec[C[E]] {
-    private def toElementProtoWriter[A](codec: ProtobufCodec[A]): (Int, Registers, RegisterOffset) => A => ProtobufWriter =
-      codec match {
-        case c: Primitive[_]        =>
-          c.primitiveType match {
-            case _: PrimitiveType.Int     =>
-              (id, _, _) => internal.ProtobufWriter.IntPrimitive(_, id)
-            case _: PrimitiveType.Long    =>
-              (id, _, _) => internal.ProtobufWriter.LongPrimitive(_, id)
-            case _: PrimitiveType.Boolean =>
-              (id, _, _) => internal.ProtobufWriter.BoolPrimitive(_, id)
-            case _: PrimitiveType.String  =>
-              (id, _, _) => internal.ProtobufWriter.StringPrimitive(_, id)
-            case _: PrimitiveType.Double  =>
-              (id, _, _) => internal.ProtobufWriter.DoublePrimitive(_, id)
-            case _: PrimitiveType.Float   =>
-              (id, _, _) => internal.ProtobufWriter.FloatPrimitive(_, id)
-            case _                        =>
-              throw new Exception(s"Unsupported primitive type: ${c.primitiveType}")
-          }
-        case c: Message[_]          => (id, registers, offset) => c.toProtoWriter(_, id, registers, offset)
-        case c: Enum[_]             => (id, _, _) => c.toProtoWriter(_, id, alwaysEncode = true)
-        case c: Transform[_, _]     =>
-          (id, registers, offset) =>
-            val makeWriter = toElementProtoWriter(c.codec)(id, registers, offset)
-            a => makeWriter(c.to(a))
-        case c: Optional[_]         =>
-          (id, registers, offset) => {
-            case None        => null
-            case Some(value) => toElementProtoWriter(c.codec)(id, registers, offset)(value)
-          }
-        case c: RecursiveMessage[_] => (id, registers, offset) => c.codec.toProtoWriter(_, id, registers, offset)
-        case _                      => throw new Exception(s"Invalid codec inside repeated: $codec")
-      }
-
-    private val elementProtoWriter: (Int, Registers, RegisterOffset) => E => ProtobufWriter =
-      toElementProtoWriter(element)
-
-    private[proteus] def toProtoWriter(a: C[E], id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter.Repeated = {
+  final case class Repeated[C[_], E](element: ProtobufCodec[E], constructor: SeqConstructor[C], deconstructor: SeqDeconstructor[C], packed: Boolean)
+    extends ProtobufCodec[C[E]] {
+    private[proteus] def computeSize(a: C[E], id: Int, registers: Registers, cache: WriterCache): Int = {
       val it = deconstructor.deconstruct(a)
-      if (it.isEmpty) null
+      if (it.isEmpty) 0
       else {
-        val builder         = List.newBuilder[ProtobufWriter]
-        val makeProtoWriter = elementProtoWriter(if (packed) -1 else id, registers, offset)
-        var size            = 0
-        while (it.hasNext) {
-          val res = makeProtoWriter(it.next)
-          if (res ne null) {
-            builder += res
-            size += res.size
-          }
+        val effectiveId = if (packed) -1 else id
+        var innerSize   = 0
+        while (it.hasNext)
+          innerSize += ProtobufCodec.computeSize(element, it.next, effectiveId, registers, alwaysEncode = true, cache)
+        if (packed) {
+          cache.recordSize(innerSize)
+          CodedOutputStream.computeUInt32Size(id, innerSize) + innerSize
+        } else {
+          innerSize
         }
-        internal.ProtobufWriter.Repeated(builder.result(), id, packed, size)
+      }
+    }
+
+    private[proteus] def write(a: C[E], id: Int, registers: Registers, cache: WriterCache)(using output: CodedOutputStream): Unit = {
+      val it = deconstructor.deconstruct(a)
+      if (!it.isEmpty) {
+        val effectiveId = if (packed) -1 else id
+        if (packed) {
+          val innerSize = cache.nextSize()
+          output.writeTag(id, 2)
+          output.writeUInt32NoTag(innerSize)
+        }
+        while (it.hasNext)
+          ProtobufCodec.write(element, it.next, effectiveId, registers, alwaysEncode = true, cache)
       }
     }
   }
@@ -513,31 +676,29 @@ object ProtobufCodec {
   /**
     * Represents a map type.
     */
-  final case class RepeatedMap[C[_, _], K, V](
-    element: Message[(K, V)],
-    constructor: MapConstructor[C],
-    deconstructor: MapDeconstructor[C]
-  ) extends ProtobufCodec[C[K, V]] {
-    private[proteus] def toProtoWriter(
-      a: C[K, V],
-      id: Int,
-      registers: Registers,
-      offset: RegisterOffset
-    ): ProtobufWriter.Repeated = {
+  final case class RepeatedMap[C[_, _], K, V](element: Message[(K, V)], constructor: MapConstructor[C], deconstructor: MapDeconstructor[C])
+    extends ProtobufCodec[C[K, V]] {
+    private[proteus] def computeSize(a: C[K, V], id: Int, registers: Registers, cache: WriterCache): Int = {
       val it = deconstructor.deconstruct(a)
-      if (it.isEmpty) null
+      if (it.isEmpty) 0
       else {
-        val builder = List.newBuilder[ProtobufWriter]
-        var size    = 0
+        var size = 0
         while (it.hasNext) {
-          val kv  = it.next
-          val res = element.toProtoWriter((deconstructor.getKey(kv), deconstructor.getValue(kv)), id, registers, offset)
-          if (res ne null) {
-            builder += res
-            size += res.size
-          }
+          val kv    = it.next
+          val tuple = if (kv.isInstanceOf[Tuple2[?, ?]]) kv.asInstanceOf[(K, V)] else (deconstructor.getKey(kv), deconstructor.getValue(kv))
+          size += element.computeSize(tuple, id, registers, cache)
         }
-        internal.ProtobufWriter.Repeated(builder.result(), id, packed = false, size)
+        size
+      }
+    }
+
+    private[proteus] def write(a: C[K, V], id: Int, registers: Registers, cache: WriterCache)(using output: CodedOutputStream): Unit = {
+      val it = deconstructor.deconstruct(a)
+      if (!it.isEmpty) {
+        while (it.hasNext) {
+          val kv = it.next
+          element.write(id, registers, cache)
+        }
       }
     }
   }
@@ -546,8 +707,11 @@ object ProtobufCodec {
     * Represents a bytes type.
     */
   case object Bytes extends ProtobufCodec[Array[Byte]] {
-    private[proteus] def toProtoWriter(a: Array[Byte], id: Int, alwaysEncode: Boolean): ProtobufWriter.Bytes =
-      if (a.isEmpty && !alwaysEncode) null else internal.ProtobufWriter.Bytes(a, id)
+    final private[proteus] def computeSize(a: Array[Byte], id: Int, alwaysEncode: Boolean): Int =
+      if (a.isEmpty && !alwaysEncode) 0 else CodedOutputStream.computeByteArraySize(id, a)
+
+    final private[proteus] def write(a: Array[Byte], id: Int, alwaysEncode: Boolean)(using output: CodedOutputStream): Unit =
+      if (a.nonEmpty || alwaysEncode) output.writeByteArray(id, a)
   }
 
   /**
@@ -555,9 +719,6 @@ object ProtobufCodec {
     */
   final case class Transform[A, B](from: A => B, to: B => A, codec: ProtobufCodec[A]) extends ProtobufCodec[B] {
     private[proteus] type Origin = A
-
-    private[proteus] def toProtoWriter(b: B, id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean): ProtobufWriter =
-      ProtobufCodec.toProtoWriter(codec, to(b), id, registers, offset, alwaysEncode)
   }
 
   /**
@@ -565,39 +726,104 @@ object ProtobufCodec {
     */
   final case class RecursiveMessage[A](thunk: () => Message[A]) extends ProtobufCodec[A] {
     lazy val codec = thunk()
-
-    private[proteus] def toProtoWriter(a: A, id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter =
-      codec.toProtoWriter(a, id, registers, offset)
   }
 
   /**
     * Represents an optional type.
     */
   final case class Optional[A](codec: ProtobufCodec[A]) extends ProtobufCodec[Option[A]] {
-    private[proteus] def toProtoWriter(a: Option[A], id: Int, registers: Registers, offset: RegisterOffset): ProtobufWriter = a match {
-      case None        => null
-      case Some(value) => ProtobufCodec.toProtoWriter(codec, value, id, registers, offset, alwaysEncode = true)
-    }
+    private[proteus] def computeSize(a: Option[A], id: Int, registers: Registers, cache: WriterCache): Int =
+      a match {
+        case None        => 0
+        case Some(value) => ProtobufCodec.computeSize(codec, value, id, registers, alwaysEncode = true, cache)
+      }
+
+    private[proteus] def write(a: Option[A], id: Int, registers: Registers, cache: WriterCache)(using output: CodedOutputStream): Unit =
+      a match {
+        case None        => ()
+        case Some(value) => ProtobufCodec.write(codec, value, id, registers, alwaysEncode = true, cache)
+      }
   }
 
-  private[proteus] def toProtoWriter[A](
+  final private[proteus] def computeSizeFromRegisters[A](
+    codec: ProtobufCodec[A],
+    register: Register[A],
+    id: Int,
+    registers: Registers,
+    offset: RegisterOffset,
+    alwaysEncode: Boolean,
+    cache: WriterCache
+  ): Int =
+    codec match {
+      case c: Primitive[_] =>
+        c.computeSizeFromRegisters(register, id, registers, offset, alwaysEncode)
+      case _               =>
+        val res = getFromRegister(registers, offset, register).asInstanceOf[A]
+        computeSize(codec, res, id, registers, alwaysEncode, cache)
+    }
+
+  final private[proteus] def computeSize[A](
     codec: ProtobufCodec[A],
     a: A,
     id: Int,
     registers: Registers,
-    offset: RegisterOffset,
-    alwaysEncode: Boolean
-  ): ProtobufWriter =
+    alwaysEncode: Boolean,
+    cache: WriterCache
+  ): Int =
     codec match {
-      case c: Primitive[_]         => c.toProtoWriter(a, id, alwaysEncode)
-      case c: Message[_]           => c.toProtoWriter(a, id, registers, offset)
-      case c: Repeated[c, e]       => c.toProtoWriter(a, id, registers, offset)
-      case c: RepeatedMap[c, k, v] => c.toProtoWriter(a, id, registers, offset)
-      case c: Enum[_]              => c.toProtoWriter(a, id, alwaysEncode)
-      case c: Transform[_, _]      => c.toProtoWriter(a, id, registers, offset, alwaysEncode)
-      case c: Optional[_]          => c.toProtoWriter(a, id, registers, offset)
-      case c: Bytes.type           => c.toProtoWriter(a, id, alwaysEncode)
-      case c: RecursiveMessage[_]  => c.toProtoWriter(a, id, registers, offset)
+      case c: Primitive[_]         => c.computeSize(a, id, alwaysEncode)
+      case c: Message[_]           => c.computeSize(a, id, registers, cache)
+      case c: Transform[_, _]      =>
+        val v = c.to(a)
+        if (v.isInstanceOf[AnyRef]) cache.recordValue(v.asInstanceOf[AnyRef]) else cache.recordValue(null.asInstanceOf[AnyRef])
+        computeSize(c.codec, v, id, registers, alwaysEncode, cache)
+      case c: Enum[_]              => c.computeSize(a, id, alwaysEncode)
+      case c: Optional[_]          => c.computeSize(a, id, registers, cache)
+      case c: Repeated[c, e]       => c.computeSize(a, id, registers, cache)
+      case c: RepeatedMap[c, k, v] => c.computeSize(a, id, registers, cache)
+      case c: Bytes.type           => c.computeSize(a, id, alwaysEncode)
+      case c: RecursiveMessage[_]  => c.codec.computeSize(a, id, registers, cache)
+    }
+
+  final private[proteus] def writeFromRegisters[A](
+    codec: ProtobufCodec[A],
+    register: Register[A],
+    id: Int,
+    registers: Registers,
+    offset: RegisterOffset,
+    alwaysEncode: Boolean,
+    cache: WriterCache
+  )(using output: CodedOutputStream): Unit =
+    codec match {
+      case c: Primitive[_]    => c.writeFromRegisters(register, id, registers, offset, alwaysEncode)
+      case c: Transform[_, _] =>
+        val v = cache.nextValue()
+        if (v != null) write(c.codec, v.asInstanceOf[c.codec.Focus], id, registers, alwaysEncode, cache)
+        else {
+          val res = getFromRegister(registers, offset, register).asInstanceOf[A]
+          write(c.codec, c.to(res), id, registers, alwaysEncode, cache)
+        }
+      case _                  =>
+        val res = getFromRegister(registers, offset, register).asInstanceOf[A]
+        write(codec, res, id, registers, alwaysEncode, cache)
+    }
+
+  final private[proteus] def write[A](codec: ProtobufCodec[A], a: A, id: Int, registers: Registers, alwaysEncode: Boolean, cache: WriterCache)(
+    using output: CodedOutputStream
+  ): Unit =
+    codec match {
+      case c: Primitive[_]         => c.write(a, id, alwaysEncode)
+      case c: Message[_]           => c.write(id, registers, cache)
+      case c: Transform[_, _]      =>
+        val v = cache.nextValue()
+        if (v != null) write(c.codec, v.asInstanceOf[c.codec.Focus], id, registers, alwaysEncode, cache)
+        else write(c.codec, c.to(a), id, registers, alwaysEncode, cache)
+      case c: Enum[_]              => c.write(a, id, alwaysEncode)
+      case c: Optional[_]          => c.write(a, id, registers, cache)
+      case c: Repeated[c, e]       => c.write(a, id, registers, cache)
+      case c: RepeatedMap[c, k, v] => c.write(a, id, registers, cache)
+      case c: Bytes.type           => c.write(a, id, alwaysEncode)
+      case c: RecursiveMessage[_]  => c.codec.write(id, registers, cache)
     }
 
   private def setDefaults[A](m: Message[A], registers: Registers, offset: RegisterOffset, visited: Array[Boolean]): Unit = {
@@ -676,10 +902,10 @@ object ProtobufCodec {
         codec match {
           case c: Message[_]           => withLimit(handleMessage(c, registers, nextOffset))
           case c: Primitive[_]         => handlePrimitive(c)
-          case c: Enum[_]              => c.valuesByIndex(input.readEnum())
           case c: Transform[_, _]      =>
             val res = loop(c.codec, field, tag)
             if (res == null) null.asInstanceOf[A] else c.from(res)
+          case c: Enum[_]              => c.valuesByIndex(input.readEnum())
           case c: Optional[_]          => Some(loop(c.codec, field, tag))
           case c: Repeated[c, e]       =>
             if (c.packed && (tag & 0x7) == 2) handlePackedRepeated(c)
@@ -732,8 +958,8 @@ object ProtobufCodec {
             case _: PrimitiveType.Float   => () => input.readFloat()
             case _                        => throw new Exception(s"Unsupported packed primitive type: $c")
           }
-        case c: Enum[_]         => () => c.valuesByIndex(input.readEnum())
         case c: Transform[_, _] => () => c.from(loop(c.codec)())
+        case c: Enum[_]         => () => c.valuesByIndex(input.readEnum())
         case _                  => throw new Exception(s"Invalid packed type: $codec")
       }
 
@@ -767,14 +993,14 @@ object ProtobufCodec {
     result
   }
 
-  private[proteus] def isOptional[A](using codec: ProtobufCodec[A]): Boolean =
+  final private[proteus] def isOptional[A](using codec: ProtobufCodec[A]): Boolean =
     codec match {
       case c: Transform[_, _] => isOptional(using c.codec)
       case _: Optional[_]     => true
       case _                  => false
     }
 
-  private[proteus] def isRepeated[A](using codec: ProtobufCodec[A]): Boolean =
+  final private[proteus] def isRepeated[A](using codec: ProtobufCodec[A]): Boolean =
     codec match {
       case c: Transform[_, _]      => isRepeated(using c.codec)
       case _: Repeated[_, _]       => true
