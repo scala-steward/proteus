@@ -600,9 +600,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
       case c: ProtobufCodec.Enum[A]                                        =>
         c.valuesByIndex(0)
       case ProtobufCodec.RepeatedMap(_, constructor, _)                    =>
-        constructor.resultObject(constructor.newObjectBuilder()).asInstanceOf[A]
+        constructor.emptyObject.asInstanceOf[A]
       case ProtobufCodec.Repeated(_, constructor, _, _)                    =>
-        constructor.resultObject(constructor.newObjectBuilder()).asInstanceOf[A]
+        constructor.emptyObject.asInstanceOf[A]
       case ProtobufCodec.Transform(from, _, codec)                         =>
         try from(getDefaultValue(using codec))
         catch { case _: Exception => null.asInstanceOf[A] }

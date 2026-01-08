@@ -826,10 +826,11 @@ object ProtobufCodec {
       case c: RecursiveMessage[_]  => c.codec.write(id, registers, cache)
     }
 
-  private def setDefaults[A](m: Message[A], registers: Registers, offset: RegisterOffset, visited: Array[Boolean]): Unit = {
+  private def finalize[A](m: Message[A], registers: Registers, offset: RegisterOffset, visited: Array[Boolean]): Unit = {
     var i = 0
     while (i < visited.length) {
       if (!visited(i)) {
+        // set default values for not visited fields
         m.fields(i) match {
           case field: SimpleField[?]   => setToRegister(registers, offset, field.register, field.defaultValue)
           case field: OneOfField[?]    =>
@@ -931,7 +932,7 @@ object ProtobufCodec {
           } else input.skipField(tag): Unit
         }
       }
-      setDefaults(m, registers, offset, visited)
+      finalize(m, registers, offset, visited)
       m.constructor.construct(registers, offset)
     }
 
