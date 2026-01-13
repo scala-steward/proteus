@@ -11,6 +11,7 @@ import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.Blackhole
 import test.test as scalapb
 import zio.blocks.schema.*
+import zio.blocks.schema.json.JsonBinaryCodecDeriver
 
 import proteus.ProtobufCodecBenchmark.*
 
@@ -22,20 +23,20 @@ import proteus.ProtobufCodecBenchmark.*
 class ProtobufCodecBenchmark {
   @Benchmark
   def simple_proteus(bh: Blackhole): Unit = {
-    val encoded = aCodec.encode(simpleData)
-    bh.consume(aCodec.decode(encoded))
+    val encoded = proteusCodec.encode(simpleData)
+    bh.consume(proteusCodec.decode(encoded))
   }
 
   @Benchmark
   def complex_proteus(bh: Blackhole): Unit = {
-    val encoded = aCodec.encode(complexData)
-    bh.consume(aCodec.decode(encoded))
+    val encoded = proteusCodec.encode(complexData)
+    bh.consume(proteusCodec.decode(encoded))
   }
 
   @Benchmark
   def large_proteus(bh: Blackhole): Unit = {
-    val encoded = aCodec.encode(largeData)
-    bh.consume(aCodec.decode(encoded))
+    val encoded = proteusCodec.encode(largeData)
+    bh.consume(proteusCodec.decode(encoded))
   }
 
   @Benchmark
@@ -55,6 +56,43 @@ class ProtobufCodecBenchmark {
     val encoded = domainToScalaPB(largeData).toByteArray
     bh.consume(scalaPBToDomain(scalapb.A.parseFrom(encoded)))
   }
+
+  @Benchmark
+  def simple_json(bh: Blackhole): Unit = {
+    val encoded = jsonCodec.encode(simpleData)
+    bh.consume(jsonCodec.decode(encoded))
+  }
+
+  @Benchmark
+  def complex_json(bh: Blackhole): Unit = {
+    val encoded = jsonCodec.encode(complexData)
+    bh.consume(jsonCodec.decode(encoded))
+  }
+
+  @Benchmark
+  def large_json(bh: Blackhole): Unit = {
+    val encoded = jsonCodec.encode(largeData)
+    bh.consume(jsonCodec.decode(encoded))
+  }
+
+  @Benchmark
+  def simple_zio_schema(bh: Blackhole): Unit = {
+    val encoded = zioSchemaCodec.encode(simpleData)
+    bh.consume(zioSchemaCodec.decode(encoded))
+  }
+
+  @Benchmark
+  def complex_zio_schema(bh: Blackhole): Unit = {
+    val encoded = zioSchemaCodec.encode(complexData)
+    bh.consume(zioSchemaCodec.decode(encoded))
+  }
+
+  @Benchmark
+  def large_zio_schema(bh: Blackhole): Unit = {
+    val encoded = zioSchemaCodec.encode(largeData)
+    bh.consume(zioSchemaCodec.decode(encoded))
+  }
+
 }
 
 object ProtobufCodecBenchmark {
@@ -152,7 +190,11 @@ object ProtobufCodecBenchmark {
         dt => Time(dt.toEpochMilli)
       )
 
-  val aCodec = Schema[A].derive(deriver)
+  val proteusCodec = Schema[A].derive(deriver)
+
+  val jsonCodec = Schema[A].derive(JsonBinaryCodecDeriver)
+
+  val zioSchemaCodec = zio.schema.codec.ProtobufCodec.protobufCodec(zio.schema.DeriveSchema.gen[A])
 
   implicit val dateTimeToTime: Transformer[DateTime, scalapb.Time] =
     dt => scalapb.Time(currentTimeMillis = dt.toEpochMilli)
@@ -184,9 +226,9 @@ object ProtobufCodecBenchmark {
 @main
 def runTest =
   while (true) {
-    val data     = largeData
-    val encoded  = aCodec.encode(data)
-    // val decoded  = aCodec.decode(encoded)
-    val encoded2 = domainToScalaPB(data).toByteArray
+    val data    = largeData
+    val encoded = proteusCodec.encode(data)
+    val decoded = proteusCodec.decode(encoded)
+    // val encoded2 = domainToScalaPB(data).toByteArray
     // val decoded2 = scalaPBToDomain(scalapb.A.parseFrom(encoded2))
   }
