@@ -138,7 +138,7 @@ object ProtobufCodec {
     override def initialValue(): RegistersHolder = new RegistersHolder(Registers(RegisterOffset.Zero), false)
   }
 
-  private[proteus] inline def withRegisters[A](f: Registers => A): A = {
+  private[proteus] inline def withRegisters[A](inline f: Registers => A): A = {
     val holder = pool.get()
     if (holder.inUse) f(Registers(RegisterOffset.Zero))
     else
