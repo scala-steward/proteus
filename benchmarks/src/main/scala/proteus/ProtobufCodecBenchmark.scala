@@ -10,6 +10,7 @@ import io.scalaland.chimney.protobufs.*
 import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.Blackhole
 import test.test as scalapb
+import upickle.default.*
 import zio.blocks.schema.*
 import zio.blocks.schema.json.JsonBinaryCodecDeriver
 
@@ -93,11 +94,34 @@ class ProtobufCodecBenchmark {
     bh.consume(zioSchemaCodec.decode(encoded))
   }
 
+  @Benchmark
+  def simple_upickle(bh: Blackhole): Unit = {
+    val encoded = writeBinary(simpleData)
+    bh.consume(readBinary[A](encoded))
+  }
+
+  @Benchmark
+  def complex_upickle(bh: Blackhole): Unit = {
+    val encoded = writeBinary(complexData)
+    bh.consume(readBinary[A](encoded))
+  }
+
+  @Benchmark
+  def large_upickle(bh: Blackhole): Unit = {
+    val encoded = writeBinary(largeData)
+    bh.consume(readBinary[A](encoded))
+  }
 }
 
 object ProtobufCodecBenchmark {
 
   type DateTime = OffsetDateTime
+
+  given ReadWriter[OffsetDateTime] =
+    readwriter[Long].bimap[OffsetDateTime](
+      odt => odt.toEpochMilli,
+      millis => if (millis == 0) DateTime.min else DateTime.ofEpochMilli(millis)
+    )
 
   object DateTime {
     def unsafeSystemNow(): DateTime = OffsetDateTime.now()
@@ -118,18 +142,20 @@ object ProtobufCodecBenchmark {
       dateTime.toInstant.toEpochMilli
   }
 
-  enum Enum derives Schema {
+  enum Enum derives Schema, ReadWriter {
     case E1, E2, E3
   }
 
-  enum OneOfExample derives Schema {
+  enum OneOfExample derives Schema, ReadWriter {
     case O1(a: Int)
     case O2(b: String)
   }
 
-  case class A(a: Int, b: String, c: A2, d: List[A2], e: Option[A2], f: Map[Int, A2], g: DateTime, h: Enum, i: OneOfExample) derives Schema
+  case class A(a: Int, b: String, c: A2, d: List[A2], e: Option[A2], f: Map[Int, A2], g: DateTime, h: Enum, i: OneOfExample)
+    derives Schema,
+      ReadWriter
 
-  case class A2(a: Boolean, b: List[Int]) derives Schema
+  case class A2(a: Boolean, b: List[Int]) derives Schema, ReadWriter
 
   val simpleData = A(
     a = 1,

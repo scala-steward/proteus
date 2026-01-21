@@ -9,6 +9,7 @@ val fs2GrpcVersion              = "3.0.0"
 val chimneyVersion              = "1.8.2"
 val circeVersion                = "0.14.15"
 val zioSchemaVersion            = "1.7.6"
+val upickleVersion              = "4.4.2"
 
 inThisBuild(
   List(
@@ -109,7 +110,8 @@ lazy val benchmarks = project
     libraryDependencies ++= Seq(
       "com.thesamet.scalapb" %% "scalapb-runtime"     % scalapb.compiler.Version.scalapbVersion % "protobuf",
       "io.scalaland"         %% "chimney-protobufs"   % chimneyVersion,
-      "dev.zio"              %% "zio-schema-protobuf" % zioSchemaVersion
+      "dev.zio"              %% "zio-schema-protobuf" % zioSchemaVersion,
+      "com.lihaoyi"          %% "upickle"             % upickleVersion
     ),
     Compile / PB.targets := Seq(
       scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
