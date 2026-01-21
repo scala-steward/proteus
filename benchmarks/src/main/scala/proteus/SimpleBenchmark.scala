@@ -1,12 +1,13 @@
 package proteus
 
 import java.util.concurrent.TimeUnit
+
+import Data.*
 import io.bullet.borer.Cbor
 import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.Blackhole
 import test.test as scalapb
 import upickle.default.*
-import Data.*
 
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)

@@ -17,20 +17,6 @@ object Data {
 
   type DateTime = OffsetDateTime
 
-  given ReadWriter[OffsetDateTime] =
-    readwriter[Long].bimap[OffsetDateTime](
-      odt => odt.toEpochMilli,
-      millis => if (millis == 0) DateTime.min else DateTime.ofEpochMilli(millis)
-    )
-
-  given Codec[OffsetDateTime] =
-    Codec
-      .of[Long]
-      .bimap(
-        odt => odt.toEpochMilli,
-        millis => if (millis == 0) DateTime.min else DateTime.ofEpochMilli(millis)
-      )
-
   object DateTime {
     def unsafeSystemNow(): DateTime = OffsetDateTime.now()
 
@@ -110,7 +96,27 @@ object Data {
     i = OneOfExample.O1(1)
   )
 
-  case class Time(currentTimeMillis: Long) derives Schema
+  case class Time(currentTimeMillis: Long) derives Schema, ReadWriter, Codec
+
+  given ReadWriter[OffsetDateTime] =
+    readwriter[Time].bimap[OffsetDateTime](
+      dt => Time(dt.toEpochMilli),
+      wrapper => {
+        val millis = wrapper.currentTimeMillis
+        if (millis == 0) DateTime.min else DateTime.ofEpochMilli(millis)
+      }
+    )
+
+  given Codec[OffsetDateTime] =
+    Codec
+      .of[Time]
+      .bimap(
+        dt => Time(dt.toEpochMilli),
+        wrapper => {
+          val millis = wrapper.currentTimeMillis
+          if (millis == 0) DateTime.min else DateTime.ofEpochMilli(millis)
+        }
+      )
 
   val deriver = ProtobufDeriver.instance(dateTimeCodec)
 
