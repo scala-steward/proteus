@@ -3,6 +3,8 @@ package proteus
 import java.time.*
 import java.util.concurrent.TimeUnit
 
+import io.bullet.borer.{Cbor, Codec}
+import io.bullet.borer.derivation.MapBasedCodecs.*
 import io.scalaland.chimney.{PartialTransformer, Transformer}
 import io.scalaland.chimney.dsl.*
 import io.scalaland.chimney.partial
@@ -111,6 +113,24 @@ class ProtobufCodecBenchmark {
     val encoded = writeBinary(largeData)
     bh.consume(readBinary[A](encoded))
   }
+
+  @Benchmark
+  def simple_borer(bh: Blackhole): Unit = {
+    val encoded = Cbor.encode(simpleData).toByteArray
+    bh.consume(Cbor.decode(encoded).to[A].value)
+  }
+
+  @Benchmark
+  def complex_borer(bh: Blackhole): Unit = {
+    val encoded = Cbor.encode(complexData).toByteArray
+    bh.consume(Cbor.decode(encoded).to[A].value)
+  }
+
+  @Benchmark
+  def large_borer(bh: Blackhole): Unit = {
+    val encoded = Cbor.encode(largeData).toByteArray
+    bh.consume(Cbor.decode(encoded).to[A].value)
+  }
 }
 
 object ProtobufCodecBenchmark {
@@ -122,6 +142,14 @@ object ProtobufCodecBenchmark {
       odt => odt.toEpochMilli,
       millis => if (millis == 0) DateTime.min else DateTime.ofEpochMilli(millis)
     )
+
+  given Codec[OffsetDateTime] =
+    Codec
+      .of[Long]
+      .bimap(
+        odt => odt.toEpochMilli,
+        millis => if (millis == 0) DateTime.min else DateTime.ofEpochMilli(millis)
+      )
 
   object DateTime {
     def unsafeSystemNow(): DateTime = OffsetDateTime.now()
@@ -142,20 +170,21 @@ object ProtobufCodecBenchmark {
       dateTime.toInstant.toEpochMilli
   }
 
-  enum Enum derives Schema, ReadWriter {
+  enum Enum derives Schema, ReadWriter, Codec {
     case E1, E2, E3
   }
 
-  enum OneOfExample derives Schema, ReadWriter {
+  enum OneOfExample derives Schema, ReadWriter, Codec.All {
     case O1(a: Int)
     case O2(b: String)
   }
 
   case class A(a: Int, b: String, c: A2, d: List[A2], e: Option[A2], f: Map[Int, A2], g: DateTime, h: Enum, i: OneOfExample)
     derives Schema,
-      ReadWriter
+      ReadWriter,
+      Codec
 
-  case class A2(a: Boolean, b: List[Int]) derives Schema, ReadWriter
+  case class A2(a: Boolean, b: List[Int]) derives Schema, ReadWriter, Codec
 
   val simpleData = A(
     a = 1,

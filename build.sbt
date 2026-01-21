@@ -10,6 +10,7 @@ val chimneyVersion              = "1.8.2"
 val circeVersion                = "0.14.15"
 val zioSchemaVersion            = "1.7.6"
 val upickleVersion              = "4.4.2"
+val borerVersion                = "1.16.2"
 
 inThisBuild(
   List(
@@ -111,7 +112,8 @@ lazy val benchmarks = project
       "com.thesamet.scalapb" %% "scalapb-runtime"     % scalapb.compiler.Version.scalapbVersion % "protobuf",
       "io.scalaland"         %% "chimney-protobufs"   % chimneyVersion,
       "dev.zio"              %% "zio-schema-protobuf" % zioSchemaVersion,
-      "com.lihaoyi"          %% "upickle"             % upickleVersion
+      "com.lihaoyi"          %% "upickle"             % upickleVersion,
+      "io.bullet"            %% "borer-derivation"    % borerVersion
     ),
     Compile / PB.targets := Seq(
       scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
