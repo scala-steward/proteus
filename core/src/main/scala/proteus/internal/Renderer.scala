@@ -93,7 +93,7 @@ private[proteus] object Renderer {
   }
 
   private def renderMessage(message: Message): Text = {
-    val hasContent  = message.reserved.nonEmpty || message.elements.nonEmpty
+    val hasContent  = message.reserved.nonEmpty || message.elements.filterNot(_ == ProtoIR.excludedMessageElement).nonEmpty
     val commentLine = message.comment.map(renderComment).getOrElse(many())
     if (hasContent) {
       many(
