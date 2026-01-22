@@ -32,8 +32,8 @@ sealed trait ProtobufCodec[A] {
     */
   final def encode(value: A): Array[Byte] =
     wrapEncode(getName, prependOnExisting = false) {
-      withRegisters { registers =>
-        val cache  = new WriterCache()
+      withRegistersAndCache { (registers, cache) =>
+        cache.reset()
         val size   = computeRootSize(this, value, registers, cache)
         val bytes  = new Array[Byte](size)
         val output = CodedOutputStream.newInstance(bytes)
@@ -132,12 +132,12 @@ object ProtobufCodec {
     schema.derive(deriver)
   }
 
-  private class RegistersHolder(val registers: Registers, var inUse: Boolean)
+  private class RegistersHolder(val registers: Registers, val cache: WriterCache, var inUse: Boolean)
 
   private val initialRegisterOffset = RegisterOffset(objects = 64, ints = 64)
 
   private val pool = new ThreadLocal[RegistersHolder] {
-    override def initialValue(): RegistersHolder = new RegistersHolder(Registers(initialRegisterOffset), false)
+    override def initialValue(): RegistersHolder = new RegistersHolder(Registers(initialRegisterOffset), new WriterCache(), false)
   }
 
   private[proteus] inline def withRegisters[A](inline f: Registers => A): A = {
@@ -147,6 +147,16 @@ object ProtobufCodec {
       try {
         holder.inUse = true
         f(holder.registers)
+      } finally holder.inUse = false
+  }
+
+  private[proteus] inline def withRegistersAndCache[A](inline f: (Registers, WriterCache) => A): A = {
+    val holder = pool.get()
+    if (holder.inUse) f(Registers(initialRegisterOffset), new WriterCache())
+    else
+      try {
+        holder.inUse = true
+        f(holder.registers, holder.cache)
       } finally holder.inUse = false
   }
 
@@ -304,7 +314,7 @@ object ProtobufCodec {
           else CodedOutputStream.computeBoolSize(id, value)
         case _: PrimitiveType.String  =>
           val value = register.asInstanceOf[Register.Object[String]].get(registers, offset)
-          if (value == "" && !alwaysEncode) 0
+          if (value.isEmpty && !alwaysEncode) 0
           else if (id == -1) CodedOutputStream.computeStringSizeNoTag(value)
           else CodedOutputStream.computeStringSize(id, value)
         case _: PrimitiveType.Double  =>
@@ -339,7 +349,7 @@ object ProtobufCodec {
           else CodedOutputStream.computeBoolSize(id, value)
         case _: PrimitiveType.String  =>
           val value: String = a
-          if (value == "" && !alwaysEncode) 0
+          if (value.isEmpty && !alwaysEncode) 0
           else if (id == -1) CodedOutputStream.computeStringSizeNoTag(value)
           else CodedOutputStream.computeStringSize(id, value)
         case _: PrimitiveType.Double  =>
@@ -376,7 +386,7 @@ object ProtobufCodec {
           }
         case _: PrimitiveType.String  =>
           val value = register.asInstanceOf[Register.Object[String]].get(registers, offset)
-          if (value != "" || alwaysEncode) {
+          if (value.nonEmpty || alwaysEncode) {
             if (id == -1) output.writeStringNoTag(value) else output.writeString(id, value)
           }
         case _: PrimitiveType.Double  =>
@@ -411,7 +421,7 @@ object ProtobufCodec {
           }
         case _: PrimitiveType.String  =>
           val value: String = a
-          if (value != "" || alwaysEncode) {
+          if (value.nonEmpty || alwaysEncode) {
             if (id == -1) output.writeStringNoTag(value) else output.writeString(id, value)
           }
         case _: PrimitiveType.Double  =>
@@ -442,15 +452,16 @@ object ProtobufCodec {
     val indexesByValue: HashMap[A, Int]  = HashMap.from(values.map(v => (v.value, v.index)))
     val namesByValue: HashMap[A, String] = HashMap.from(values.map(v => (v.value, v.name)))
 
-    private[proteus] def computeSize(a: A, id: Int, alwaysEncode: Boolean): Int = {
+    private[proteus] def computeSize(a: A, id: Int, alwaysEncode: Boolean, cache: WriterCache): Int = {
       val index = indexesByValue(a)
+      cache.recordSize(index)
       if (index == 0 && !alwaysEncode) 0
       else if (id == -1) CodedOutputStream.computeInt32SizeNoTag(index)
       else CodedOutputStream.computeInt32Size(id, index)
     }
 
-    private[proteus] def write(a: A, id: Int, alwaysEncode: Boolean)(using output: CodedOutputStream): Unit = {
-      val index = indexesByValue(a)
+    private[proteus] def write(id: Int, alwaysEncode: Boolean, cache: WriterCache)(using output: CodedOutputStream): Unit = {
+      val index = cache.nextSize()
       if (index != 0 || alwaysEncode) {
         if (id == -1) output.writeInt32NoTag(index) else output.writeInt32(id, index)
       }
@@ -783,7 +794,7 @@ object ProtobufCodec {
         val v = c.to(a)
         cache.recordValue(v.asInstanceOf[AnyRef])
         computeSize(c.codec, v, id, registers, alwaysEncode, cache)
-      case c: Enum[_]              => c.computeSize(a, id, alwaysEncode)
+      case c: Enum[_]              => c.computeSize(a, id, alwaysEncode, cache)
       case c: Optional[_]          => c.computeSize(a, id, registers, cache)
       case c: Repeated[c, e]       => c.computeSize(a, id, registers, cache)
       case c: RepeatedMap[c, k, v] => c.computeSize(a, id, registers, cache)
@@ -819,7 +830,7 @@ object ProtobufCodec {
       case c: Transform[_, _]      =>
         val v = cache.nextValue()
         write(c.codec, v.asInstanceOf[c.codec.Focus], id, registers, alwaysEncode, cache)
-      case c: Enum[_]              => c.write(a, id, alwaysEncode)
+      case c: Enum[_]              => c.write(id, alwaysEncode, cache)
       case c: Optional[_]          => c.write(a, id, registers, cache)
       case c: Repeated[c, e]       => c.write(a, id, registers, cache)
       case c: RepeatedMap[c, k, v] => c.write(a, id, registers, cache)
@@ -982,7 +993,7 @@ object ProtobufCodec {
         val v = c.to(a)
         cache.recordValue(v.asInstanceOf[AnyRef])
         computeRootSize(c.codec, v, registers, cache)
-      case c: Enum[_]             => c.computeSize(a, -1, alwaysEncode = true)
+      case c: Enum[_]             => c.computeSize(a, -1, alwaysEncode = true, cache)
       case _                      => throw new Exception(s"Invalid root codec: $codec")
     }
 
