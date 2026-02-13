@@ -25,3 +25,7 @@ It is hard to compete with the speed of code generation, which creates custom en
 We have a benchmark project that compares the performance of Proteus with ScalaPB and Chimney for various payload sizes. You can find it [here](https://github.com/ghostdogpr/proteus/tree/main/benchmarks). The bottom line is that Proteus is up to 1.5x slower for small payloads (which is still extremely fast) and about the same speed for large payloads. Proteus allocates quite a lot less memory for all payload sizes.
 
 If you compare it with alternative binary serialization libraries, Proteus is between 1.5 and 2x faster than [upickle](https://github.com/com-lihaoyi/upickle) and [borer](https://github.com/sirthias/borer), with less memory allocations as well.
+
+::: tip
+Once we deployed it to production, we found that Proteus was actually a little faster than ScalaPB with Chimney for our use case! So the benchmarks might not be fully realistic. Make sure to measure for your own payloads.
+:::
