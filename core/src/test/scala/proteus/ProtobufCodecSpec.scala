@@ -6,6 +6,7 @@ import scala.util.Try
 
 import zio.blocks.schema.*
 import zio.blocks.schema.binding.Binding
+import zio.blocks.typeid.*
 import zio.test.*
 import zio.test.Assertion.*
 
@@ -162,7 +163,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
       test("message with DateTime field") {
         case class TimeMessage(id: Int, timestamp: DateTime) derives Schema
 
-        val codec = Schema[TimeMessage].deriving(deriver).instance(TypeName.offsetDateTime, testDateTimeSchema).derive
+        val codec = Schema[TimeMessage].deriving(deriver).instance(TypeId.offsetDateTime, testDateTimeSchema).derive
 
         val timestamps = List(
           DateTime.min,
@@ -715,6 +716,34 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
           assert(decoded.name)(equalTo("test")) &&
           assert(decoded.metadata)(equalTo(Map.empty[String, String]))
       },
+      test("proteus excluded modifier with unsupported field uses default value on decode") {
+        case class MessageWithExcludedUnsupported(id: Int, data: List[Option[Int]] = List(Some(42))) derives Schema
+
+        val codec    =
+          Schema[MessageWithExcludedUnsupported].derive(deriver.modifier[MessageWithExcludedUnsupported]("data", excluded))
+        val original = MessageWithExcludedUnsupported(1, List(None))
+
+        val encoded = codec.encode(original)
+        val decoded = codec.decode(encoded)
+
+        assert(decoded)(equalTo(MessageWithExcludedUnsupported(1, List(Some(42)))))
+      },
+      test("proteus excluded modifier uses custom schema default value on decode") {
+        case class UnsupportedPayload(values: List[Option[Int]])
+        object UnsupportedPayload {
+          given Schema[UnsupportedPayload] =
+            Schema.derived[UnsupportedPayload].defaultValue(UnsupportedPayload(List(Some(7), None)))
+        }
+        case class MessageWithExcludedCustomDefault(id: Int, data: UnsupportedPayload) derives Schema
+
+        val codec =
+          Schema[MessageWithExcludedCustomDefault].derive(deriver.modifier[MessageWithExcludedCustomDefault]("data", excluded))
+
+        val encoded = codec.encode(MessageWithExcludedCustomDefault(1, UnsupportedPayload(List(Some(99)))))
+        val decoded = codec.decode(encoded)
+
+        assert(decoded)(equalTo(MessageWithExcludedCustomDefault(1, UnsupportedPayload(List(Some(7), None)))))
+      },
       test("proteus excluded modifier with variant cases") {
         enum Contact derives Schema {
           case Email(address: String)
@@ -748,9 +777,9 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
         val codec = Schema[ContactMessage].derive(deriver.modifier[Contact]("Phone", excluded))
 
-        val slackContact = ContactMessage(Contact.Phone("my-phone"))
+        val contact = ContactMessage(Contact.Phone("my-phone"))
 
-        val encoded = codec.encode(slackContact)
+        val encoded = codec.encode(contact)
         val decoded = codec.decode(encoded)
 
         assert(decoded)(equalTo(ContactMessage(Contact.None)))
@@ -978,7 +1007,7 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
 
         val codec = Schema[MessageWithContact]
           .deriving(deriver)
-          .instance(Schema[ContactWrapper].reflect.asRecord.get.typeName, transformedCodec)
+          .instance(TypeId.of[ContactWrapper], transformedCodec)
           .derive
 
         val originalEmail = MessageWithContact(1, ContactWrapper(ContactType.Email("test@example.com")))
@@ -1048,6 +1077,122 @@ object ProtobufCodecSpec extends ZIOSpecDefault {
           assert(result.failed.get.getMessage)(
             containsString("Unsupported usage of repeated inside repeated type")
           )
+      }
+    ),
+    suite("Field-Specific Instance Override")(
+      test("field-specific instance override roundtrips correctly") {
+        case class TimestampWrapper(millis: Long) derives Schema
+
+        val timestampCodec: ProtobufCodec[Long] =
+          Schema[TimestampWrapper]
+            .derive(deriver)
+            .transform[Long](_.millis, TimestampWrapper(_))
+
+        case class Event(id: Int, createdAt: Long) derives Schema
+
+        val codec = Schema[Event].derive(deriver.instance[Event, Long]("createdAt", timestampCodec))
+
+        val original = Event(1, 1000L)
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
+      },
+      test("field-specific instance only affects the specified field") {
+        case class TimestampWrapper(millis: Long) derives Schema
+
+        val timestampCodec: ProtobufCodec[Long] =
+          Schema[TimestampWrapper]
+            .derive(deriver)
+            .transform[Long](_.millis, TimestampWrapper(_))
+
+        case class Event(id: Int, createdAt: Long, updatedAt: Long) derives Schema
+
+        // Override only createdAt, not updatedAt
+        val fieldSpecificCodec = Schema[Event].derive(deriver.instance[Event, Long]("createdAt", timestampCodec))
+
+        // Override all Long fields
+        val typeWideCodec = Schema[Event].derive(deriver.instance[Long](timestampCodec))
+
+        val original = Event(1, 1000L, 2000L)
+
+        val fieldSpecificEncoded = fieldSpecificCodec.encode(original)
+        val typeWideEncoded      = typeWideCodec.encode(original)
+
+        // Encodings should differ because field-specific only wraps createdAt
+        assert(fieldSpecificEncoded)(not(equalTo(typeWideEncoded))) &&
+          // But both should roundtrip correctly
+          assert(fieldSpecificCodec.decode(fieldSpecificEncoded))(equalTo(original)) &&
+          assert(typeWideCodec.decode(typeWideEncoded))(equalTo(original))
+      },
+      test("field-specific instance with custom codec for nested message field") {
+        case class Address(street: String, city: String) derives Schema
+        case class CompactAddress(value: String) derives Schema
+
+        val compactAddressCodec: ProtobufCodec[Address] =
+          Schema[CompactAddress]
+            .derive(deriver)
+            .transform[Address](
+              ca => {
+                val parts = ca.value.split(",", 2)
+                Address(parts(0).trim, if (parts.length > 1) parts(1).trim else "")
+              },
+              a => CompactAddress(s"${a.street}, ${a.city}")
+            )
+
+        case class Person(name: String, home: Address, work: Address) derives Schema
+
+        // Override only the "home" field
+        val codec = Schema[Person].derive(deriver.instance[Person, Address]("home", compactAddressCodec))
+
+        val original = Person("Alice", Address("123 Main St", "Springfield"), Address("456 Oak Ave", "Shelbyville"))
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
+      },
+      test("field-specific instance override with default values") {
+        case class TimestampWrapper(millis: Long) derives Schema
+
+        val timestampCodec: ProtobufCodec[Long] =
+          Schema[TimestampWrapper]
+            .derive(deriver)
+            .transform[Long](_.millis, TimestampWrapper(_))
+
+        case class Event(id: Int, createdAt: Long) derives Schema
+
+        val codec = Schema[Event].derive(deriver.instance[Event, Long]("createdAt", timestampCodec))
+
+        // Test with default values (0)
+        val original = Event(0, 0L)
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
+      },
+      test("multiple field-specific instance overrides on different fields") {
+        case class MillisWrapper(millis: Long) derives Schema
+        case class SecondsWrapper(seconds: Long) derives Schema
+
+        val millisCodec: ProtobufCodec[Long] =
+          Schema[MillisWrapper].derive(deriver).transform[Long](_.millis, MillisWrapper(_))
+
+        val secondsCodec: ProtobufCodec[Long] =
+          Schema[SecondsWrapper].derive(deriver).transform[Long](_.seconds, SecondsWrapper(_))
+
+        case class Event(id: Int, createdAt: Long, updatedAt: Long) derives Schema
+
+        val codec = Schema[Event].derive(
+          deriver
+            .instance[Event, Long]("createdAt", millisCodec)
+            .instance[Event, Long]("updatedAt", secondsCodec)
+        )
+
+        val original = Event(1, 1000L, 2000L)
+        val encoded  = codec.encode(original)
+        val decoded  = codec.decode(encoded)
+
+        assert(decoded)(equalTo(original))
       }
     )
   )
