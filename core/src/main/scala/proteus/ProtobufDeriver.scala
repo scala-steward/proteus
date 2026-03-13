@@ -24,8 +24,13 @@ import proteus.internal.*
   * @param instances custom codec instances
   * @param modifiers custom modifiers
   */
-case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vector[InstanceOverride], modifiers: Vector[ModifierOverride])
-  extends Deriver[ProtobufCodec] {
+case class ProtobufDeriver private (
+  flags: Set[DerivationFlag],
+  instances: Vector[InstanceOverride],
+  modifiers: Vector[ModifierOverride],
+  messageCustomizer: ProtoIR.Message => ProtoIR.Message,
+  enumCustomizer: ProtoIR.Enum => ProtoIR.Enum
+) extends Deriver[ProtobufCodec] {
 
   // Shadows Deriver.instance[F, T, A] by name so extension methods are reachable.
   // InstanceShadow is sealed with no instances, making this uncallable.
@@ -96,6 +101,20 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
   def disable(flag: DerivationFlag): ProtobufDeriver =
     copy(flags = flags - flag)
 
+  /**
+    * Registers a transformation function that will be applied to every derived `ProtoIR.Message`.
+    * Multiple calls compose in order via `andThen`.
+    */
+  def customizeMessages(f: ProtoIR.Message => ProtoIR.Message): ProtobufDeriver =
+    copy(messageCustomizer = messageCustomizer.andThen(f))
+
+  /**
+    * Registers a transformation function that will be applied to every derived `ProtoIR.Enum`.
+    * Multiple calls compose in order via `andThen`.
+    */
+  def customizeEnums(f: ProtoIR.Enum => ProtoIR.Enum): ProtobufDeriver =
+    copy(enumCustomizer = enumCustomizer.andThen(f))
+
   override def instanceOverrides: IndexedSeq[InstanceOverride] = instances
 
   override def modifierOverrides: IndexedSeq[ModifierOverride] = modifiers
@@ -149,7 +168,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
           val name     = getFieldName(field.name, field.modifiers)
           val register = registers(index)
           instance match {
-            case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneOfField[inner]), _, _, _, _, true, _, _)) =>
+            case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneOfField[inner]), _, _, _, _, true, _, _, _)) =>
               val idIterator = getReservedIndexes(field.modifiers).iterator
               builder += OneOfField(
                 name,
@@ -180,7 +199,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                 catch { case _: Exception => null.asInstanceOf[A] },
                 o.comment
               )
-            case ProtobufCodec.Message(_, Array(o: OneOfField[?]), _, _, _, _, true, _, _)                                            =>
+            case ProtobufCodec.Message(_, Array(o: OneOfField[?]), _, _, _, _, true, _, _, _)                                            =>
               val idIterator = getReservedIndexes(field.modifiers).iterator
               builder += OneOfField(
                 name,
@@ -228,7 +247,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                 None,
                 getComment(field.modifiers)
               )
-            case instance                                                                                                             =>
+            case instance                                                                                                                =>
               val fieldId = getReservedIndex(field.modifiers) match {
                 case Some(reservedIndex) => reservedIndex
                 case None                =>
@@ -242,7 +261,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                 instance,
                 register,
                 field.value.getDefaultValue.getOrElse(getDefaultValue(using instance)),
-                getComment(field.modifiers)
+                getComment(field.modifiers),
+                isDeprecated(field.modifiers)
               )
           }
         }
@@ -283,7 +303,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
               reservedIndexes,
               inline = false,
               nested = nested,
-              comment = getComment(modifiers)
+              comment = getComment(modifiers),
+              customizeIR = messageCustomizer
             )
 
             visited.remove(typeId)
@@ -333,9 +354,18 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
         val prefix     = getEnumPrefix(modifiers, flags, typeId)
         val suffix     = getEnumSuffix(modifiers, flags, typeId)
         val enumName   = getEnumMemberName(c.name, c.modifiers, prefix, suffix)
-        builder += ProtobufCodec.EnumValue(enumName, fieldIndex, a, getComment(c.modifiers))
+        builder += ProtobufCodec.EnumValue(enumName, fieldIndex, a, getComment(c.modifiers), isDeprecated(c.modifiers))
       }
-      Lazy(ProtobufCodec.Enum(getTypeName(typeId, modifiers), builder.result(), reservedIndexes.toList, nested = nested, getComment(modifiers)))
+      Lazy(
+        ProtobufCodec.Enum(
+          getTypeName(typeId, modifiers),
+          builder.result(),
+          reservedIndexes.toList,
+          nested = nested,
+          getComment(modifiers),
+          customizeIR = enumCustomizer
+        )
+      )
     } else
       Lazy {
         val visited   = visitedCache.get
@@ -381,7 +411,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                       if (nestedOneOf) instance.makeNested else instance,
                       register.asInstanceOf[Register[Any]],
                       null.asInstanceOf[instance.Focus],
-                      getComment(c.modifiers)
+                      getComment(c.modifiers),
+                      isDeprecated(c.modifiers)
                     )
                   }
               }
@@ -410,7 +441,8 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
                 reservedIndexes,
                 inline = inlineOneOf,
                 nested = nested,
-                comment = getComment(modifiers)
+                comment = getComment(modifiers),
+                customizeIR = messageCustomizer
               )
 
               visited.remove(typeId)
@@ -583,6 +615,9 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
   private def getComment(modifiers: Seq[Modifier]): Option[String] =
     modifiers.collectFirst { case Modifier.config(`commentModifier`, value) => value }
 
+  private def isDeprecated(modifiers: Seq[Modifier]): Boolean =
+    modifiers.exists { case Modifier.config(`deprecatedModifier`, _) => true; case _ => false }
+
   private def isEnum(cases: IndexedSeq[Term[?, ?, ?]], modifiers: Seq[Modifier]): Boolean =
     cases.forall(c =>
       innerSchema(c.value) match {
@@ -603,7 +638,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
 
   private def getDefaultValue[A](using codec: ProtobufCodec[A]): A =
     codec match {
-      case ProtobufCodec.Primitive(primitiveType)                          =>
+      case ProtobufCodec.Primitive(primitiveType)                             =>
         primitiveType match {
           case _: PrimitiveType.Boolean => false
           case _: PrimitiveType.Float   => 0.0f
@@ -613,7 +648,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
           case _: PrimitiveType.String  => ""
           case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
         }
-      case ProtobufCodec.Message(_, fields, constructor, _, _, _, _, _, _) =>
+      case ProtobufCodec.Message(_, fields, constructor, _, _, _, _, _, _, _) =>
         val registers = Registers(constructor.usedRegisters)
         fields.foreach {
           case field: SimpleField[?]   =>
@@ -624,20 +659,20 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
             setToRegister(registers, RegisterOffset.Zero, field.register, field.defaultValue)
         }
         constructor.construct(registers, RegisterOffset.Zero)
-      case ProtobufCodec.Optional(_, _)                                    =>
+      case ProtobufCodec.Optional(_, _)                                       =>
         None.asInstanceOf[A]
-      case c: ProtobufCodec.Enum[A]                                        =>
+      case c: ProtobufCodec.Enum[A]                                           =>
         c.valueOrThrow(0)
-      case ProtobufCodec.RepeatedMap(_, constructor, _, _)                 =>
+      case ProtobufCodec.RepeatedMap(_, constructor, _, _)                    =>
         constructor.emptyObject.asInstanceOf[A]
-      case ProtobufCodec.Repeated(_, constructor, _, _, elementClassTag)   =>
+      case ProtobufCodec.Repeated(_, constructor, _, _, elementClassTag)      =>
         constructor.empty(elementClassTag)
-      case ProtobufCodec.Transform(from, _, codec)                         =>
+      case ProtobufCodec.Transform(from, _, codec)                            =>
         try from(getDefaultValue(using codec))
         catch { case _: Exception => null.asInstanceOf[A] }
-      case c: ProtobufCodec.RecursiveMessage[A]                            =>
+      case c: ProtobufCodec.RecursiveMessage[A]                               =>
         getDefaultValue(using c.codec)
-      case ProtobufCodec.Bytes                                             =>
+      case ProtobufCodec.Bytes                                                =>
         Array.empty[Byte]
     }
 
@@ -738,7 +773,7 @@ case class ProtobufDeriver private (flags: Set[DerivationFlag], instances: Vecto
 
 sealed private[proteus] trait InstanceShadow
 
-object ProtobufDeriver extends ProtobufDeriver(Set.empty, Vector.empty, Vector.empty) {
+object ProtobufDeriver extends ProtobufDeriver(Set.empty, Vector.empty, Vector.empty, identity, identity) {
 
   /**
     * Flags for the derivation process.

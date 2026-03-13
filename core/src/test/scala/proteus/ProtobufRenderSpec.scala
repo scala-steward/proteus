@@ -1573,6 +1573,244 @@ message OptionalInt {
 
         assertTrue(rendered == expected)
       }
+    ),
+    suite("Options Rendering")(
+      test("field with custom options renders bracket notation") {
+        val field    = ProtoIR.Field(
+          ProtoIR.Type.Int32,
+          "seq",
+          1,
+          optional = false,
+          comment = None,
+          options = List(ProtoIR.OptionValue.boolLit(ProtoIR.OptionName.Extension("spec.nullable"), true))
+        )
+        val msg      = ProtoIR.Message("Test", List(ProtoIR.MessageElement.FieldElement(field)), List.empty)
+        val cu       = CompilationUnit(Some("test"), List(Statement.TopLevelStatement(ProtoIR.TopLevelDef.MessageDef(msg))), List.empty)
+        val rendered = Renderer.render(cu)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message Test {
+    int32 seq = 1 [(spec.nullable) = true];
+}
+"""
+        assertTrue(rendered == expected)
+      },
+      test("field with deprecated and custom options merges into single bracket block") {
+        val field    = ProtoIR.Field(
+          ProtoIR.Type.Int32,
+          "seq",
+          1,
+          optional = false,
+          comment = None,
+          options = List(
+            ProtoIR.OptionValue.deprecated,
+            ProtoIR.OptionValue.boolLit(ProtoIR.OptionName.Extension("spec.nullable"), true)
+          )
+        )
+        val msg      = ProtoIR.Message("Test", List(ProtoIR.MessageElement.FieldElement(field)), List.empty)
+        val cu       = CompilationUnit(Some("test"), List(Statement.TopLevelStatement(ProtoIR.TopLevelDef.MessageDef(msg))), List.empty)
+        val rendered = Renderer.render(cu)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message Test {
+    int32 seq = 1 [deprecated = true, (spec.nullable) = true];
+}
+"""
+        assertTrue(rendered == expected)
+      },
+      test("message with statement-level options") {
+        val msg      = ProtoIR.Message(
+          "PlayStart",
+          List(
+            ProtoIR.MessageElement.FieldElement(ProtoIR.Field(ProtoIR.Type.Int32, "food", 1, optional = false, comment = None))
+          ),
+          List.empty,
+          comment = None,
+          options = List(
+            ProtoIR.OptionValue(
+              ProtoIR.OptionName.Extension("spec.analytics"),
+              ProtoIR.OptionVal.MessageValue(List("track" -> ProtoIR.OptionVal.MessageValue()))
+            )
+          )
+        )
+        val cu       = CompilationUnit(Some("test"), List(Statement.TopLevelStatement(ProtoIR.TopLevelDef.MessageDef(msg))), List.empty)
+        val rendered = Renderer.render(cu)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message PlayStart {
+    option (spec.analytics) = {
+        track: {}
+    };
+
+    int32 food = 1;
+}
+"""
+        assertTrue(rendered == expected)
+      },
+      test("enum with statement-level options") {
+        val e        = ProtoIR.Enum(
+          "CookieGrade",
+          List(
+            ProtoIR.EnumValue("COOKIE_GRADE_UNSPECIFIED", 0),
+            ProtoIR.EnumValue("COOKIE_GRADE_S", 1, options = List(ProtoIR.OptionValue.stringLit(ProtoIR.OptionName.Extension("spec.value"), "S")))
+          ),
+          List.empty,
+          comment = None,
+          options = List(ProtoIR.OptionValue.identifier(ProtoIR.OptionName.Extension("spec.type"), "FIELD_TYPE_STRING"))
+        )
+        val cu       = CompilationUnit(Some("test"), List(Statement.TopLevelStatement(ProtoIR.TopLevelDef.EnumDef(e))), List.empty)
+        val rendered = Renderer.render(cu)
+        val expected = """syntax = "proto3";
+
+package test;
+
+enum CookieGrade {
+    option (spec.type) = FIELD_TYPE_STRING;
+    COOKIE_GRADE_UNSPECIFIED = 0;
+    COOKIE_GRADE_S = 1 [(spec.value) = "S"];
+}
+"""
+        assertTrue(rendered == expected)
+      },
+      test("enum value with inline options") {
+        val e        = ProtoIR.Enum(
+          "HappyResp",
+          List(
+            ProtoIR.EnumValue("HAPPY_RESP_UNSPECIFIED", 0),
+            ProtoIR.EnumValue(
+              "HAPPY_RESP_LOGGING",
+              1,
+              options = List(ProtoIR.OptionValue.stringLit(ProtoIR.OptionName.Extension("spec.value"), "logging"))
+            )
+          ),
+          List.empty
+        )
+        val cu       = CompilationUnit(Some("test"), List(Statement.TopLevelStatement(ProtoIR.TopLevelDef.EnumDef(e))), List.empty)
+        val rendered = Renderer.render(cu)
+        val expected = """syntax = "proto3";
+
+package test;
+
+enum HappyResp {
+    HAPPY_RESP_UNSPECIFIED = 0;
+    HAPPY_RESP_LOGGING = 1 [(spec.value) = "logging"];
+}
+"""
+        assertTrue(rendered == expected)
+      },
+      test("deprecated modifier marks field as deprecated") {
+        case class DeprecatedTest(oldField: Int, newField: String) derives Schema
+        val codec    = Schema[DeprecatedTest].derive(deriver.modifier[DeprecatedTest]("oldField", deprecated))
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message DeprecatedTest {
+    int32 old_field = 1 [deprecated = true];
+    string new_field = 2;
+}
+"""
+        assertTrue(rendered == expected)
+      },
+      test("deprecated modifier marks enum value as deprecated") {
+        enum Status derives Schema { case Active, Inactive, Pending }
+        case class StatusMessage(status: Status) derives Schema
+        val codec    = Schema[StatusMessage].derive(deriver.modifier[Status]("Inactive", deprecated))
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message StatusMessage {
+    Status status = 1;
+}
+
+enum Status {
+    ACTIVE = 0;
+    INACTIVE = 1 [deprecated = true];
+    PENDING = 2;
+}
+"""
+        assertTrue(rendered == expected)
+      },
+      test("complex message with nested types, multiline options, field options, and enum options") {
+        import ProtoIR.*
+
+        enum CookieGrade derives Schema { case Unspecified, S, A, B, C }
+        case class Cookie(seq: Option[Int], grade: CookieGrade, abc: Option[Long]) derives Schema
+        case class PlayStart(cookieArray: List[Cookie]) derives Schema
+
+        val specNullable = OptionName.Extension("spec.nullable")
+        val specValue    = OptionName.Extension("spec.value")
+
+        val customDeriver = deriver
+          .enable(ProtobufDeriver.DerivationFlag.AutoPrefixEnums)
+          .modifier[Cookie](nested)
+          .modifier[Cookie]("seq", deprecated)
+          .modifier[Cookie]("grade", comment("comment"))
+          .customizeEnums { e =>
+            val prefix = proteus.internal.typeNameToUpperSnakeCase(e.name) + "_"
+            e.copy(
+              options = e.options :+ OptionValue.identifier(OptionName.Extension("spec.type"), "FIELD_TYPE_STRING"),
+              values = e.values.map(v => v.copy(options = v.options :+ OptionValue.stringLit(specValue, v.name.stripPrefix(prefix))))
+            )
+          }
+          .customizeMessages { msg =>
+            val withAnalytics =
+              if (msg.nested) msg
+              else
+                msg.copy(
+                  options = msg.options :+ OptionValue(
+                    OptionName.Extension("spec.analytics"),
+                    OptionVal.MessageValue(List("track" -> OptionVal.MessageValue()))
+                  )
+                )
+            val withNullable  = withAnalytics.copy(elements = withAnalytics.elements.map {
+              case f @ MessageElement.FieldElement(field) if field.optional =>
+                MessageElement.FieldElement(field.copy(optional = false, options = field.options :+ OptionValue.boolLit(specNullable, true)))
+              case other                                                    => other
+            })
+            withNullable
+          }
+
+        val codec    = Schema[PlayStart].derive(customDeriver)
+        val rendered = renderCodec(codec)
+        val expected = """syntax = "proto3";
+
+package test;
+
+message PlayStart {
+    option (spec.analytics) = {
+        track: {}
+    };
+
+    message Cookie {
+        int32 seq = 1 [deprecated = true, (spec.nullable) = true];
+        CookieGrade grade = 2; // comment
+        int64 abc = 3 [(spec.nullable) = true];
+    }
+
+    repeated Cookie cookie_array = 1;
+}
+
+enum CookieGrade {
+    option (spec.type) = FIELD_TYPE_STRING;
+    COOKIE_GRADE_UNSPECIFIED = 0 [(spec.value) = "UNSPECIFIED"];
+    COOKIE_GRADE_S = 1 [(spec.value) = "S"];
+    COOKIE_GRADE_A = 2 [(spec.value) = "A"];
+    COOKIE_GRADE_B = 3 [(spec.value) = "B"];
+    COOKIE_GRADE_C = 4 [(spec.value) = "C"];
+}
+"""
+        assertTrue(rendered == expected)
+      }
     )
   )
 }
