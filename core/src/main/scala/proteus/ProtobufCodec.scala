@@ -335,7 +335,7 @@ object ProtobufCodec {
           if (value == 0f && !alwaysEncode) 0
           else if (id == -1) CodedOutputStream.computeFloatSizeNoTag(value)
           else CodedOutputStream.computeFloatSize(id, value)
-        case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
+        case _                        => throw new ProteusException(s"Unsupported primitive type: $primitiveType")
       }
 
     private[proteus] def computeSize(a: A, id: Int, alwaysEncode: Boolean): Int =
@@ -370,7 +370,7 @@ object ProtobufCodec {
           if (value == 0f && !alwaysEncode) 0
           else if (id == -1) CodedOutputStream.computeFloatSizeNoTag(value)
           else CodedOutputStream.computeFloatSize(id, value)
-        case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
+        case _                        => throw new ProteusException(s"Unsupported primitive type: $primitiveType")
       }
 
     private[proteus] def writeFromRegisters(register: Register[A], id: Int, registers: Registers, offset: RegisterOffset, alwaysEncode: Boolean)(
@@ -407,7 +407,7 @@ object ProtobufCodec {
           if (value != 0f || alwaysEncode) {
             if (id == -1) output.writeFloatNoTag(value) else output.writeFloat(id, value)
           }
-        case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
+        case _                        => throw new ProteusException(s"Unsupported primitive type: $primitiveType")
       }
 
     private[proteus] def write(a: A, id: Int, alwaysEncode: Boolean)(using output: CodedOutputStream): Unit =
@@ -442,7 +442,7 @@ object ProtobufCodec {
           if (value != 0f || alwaysEncode) {
             if (id == -1) output.writeFloatNoTag(value) else output.writeFloat(id, value)
           }
-        case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
+        case _                        => throw new ProteusException(s"Unsupported primitive type: $primitiveType")
       }
   }
 
@@ -468,7 +468,7 @@ object ProtobufCodec {
 
     def valueOrThrow(raw: Int): A = {
       val value = valuesByIndex(raw)
-      if (value == null) throw new Exception(s"Unknown enum value $raw for enum $name")
+      if (value == null) throw new ProteusException(s"Unknown enum value $raw for enum $name")
       value
     }
 
@@ -890,10 +890,10 @@ object ProtobufCodec {
         m.fields(i) match {
           case field: SimpleField[?]   =>
             if (field.defaultValue != null) setToRegister(registers, offset, field.register, field.defaultValue)
-            else throw new Exception(s"Field ${field.name} in message ${m.name} is absent and has no default value")
+            else throw new ProteusException(s"Field ${field.name} in message ${m.name} is absent and has no default value")
           case field: OneOfField[?]    =>
             if (field.defaultValue != null) setToRegister(registers, offset, field.register, field.defaultValue)
-            else throw new Exception(s"OneOf field ${field.name} in message ${m.name} is absent and has no default value")
+            else throw new ProteusException(s"OneOf field ${field.name} in message ${m.name} is absent and has no default value")
           case field: ExcludedField[?] => setToRegister(registers, offset, field.register, field.defaultValue)
         }
       } else if (m.useBuilder) {
@@ -1000,7 +1000,7 @@ object ProtobufCodec {
       case _: PrimitiveType.String  => input.readStringRequireUtf8()
       case _: PrimitiveType.Double  => input.readDouble()
       case _: PrimitiveType.Float   => input.readFloat()
-      case _                        => throw new Exception(s"Unsupported primitive type: $p")
+      case _                        => throw new ProteusException(s"Unsupported primitive type: $p")
     }
 
   private def handlePackedRepeated[C[_], E](r: Repeated[C, E], builder: r.constructor.Builder[E])(using input: CodedInputStream): Unit =
@@ -1013,7 +1013,7 @@ object ProtobufCodec {
             case _: PrimitiveType.Boolean => () => r.constructor.addBoolean(builder, input.readBool())
             case _: PrimitiveType.Double  => () => r.constructor.addDouble(builder, input.readDouble())
             case _: PrimitiveType.Float   => () => r.constructor.addFloat(builder, input.readFloat())
-            case _                        => throw new Exception(s"Unsupported packed primitive type: $c")
+            case _                        => throw new ProteusException(s"Unsupported packed primitive type: $c")
           }
         case c: Enum[_]         => () => r.constructor.add(builder, c.valueOrThrow(input.readEnum()))
         case c: Transform[_, _] =>
@@ -1026,16 +1026,16 @@ object ProtobufCodec {
                   case _: PrimitiveType.Boolean => () => input.readBool()
                   case _: PrimitiveType.Double  => () => input.readDouble()
                   case _: PrimitiveType.Float   => () => input.readFloat()
-                  case _                        => throw new Exception(s"Unsupported packed primitive type: $c")
+                  case _                        => throw new ProteusException(s"Unsupported packed primitive type: $c")
                 }
               case c: Enum[_]         => () => c.valueOrThrow(input.readEnum())
               case c: Transform[_, _] => () => c.from(loop(c.codec)())
-              case _                  => throw new Exception(s"Invalid packed type: $c")
+              case _                  => throw new ProteusException(s"Invalid packed type: $c")
             }
 
           val getElement = loop(r.element)
           () => r.constructor.add(builder, getElement())
-        case _                  => throw new Exception(s"Invalid packed type: ${r.element}")
+        case _                  => throw new ProteusException(s"Invalid packed type: ${r.element}")
       }
       while (input.getBytesUntilLimit > 0)
         getElement()
@@ -1050,7 +1050,7 @@ object ProtobufCodec {
         cache.recordValue(v.asInstanceOf[AnyRef])
         computeRootSize(c.codec, v, registers, cache)
       case c: Enum[_]             => c.computeSize(a, -1, alwaysEncode = true, cache)
-      case _                      => throw new Exception(s"Invalid root codec: $codec")
+      case _                      => throw new ProteusException(s"Invalid root codec: $codec")
     }
 
   private def read[A](registers: Registers, offset: RegisterOffset, codec: ProtobufCodec[A])(using input: CodedInputStream): A = {
@@ -1060,7 +1060,7 @@ object ProtobufCodec {
         case c: RecursiveMessage[_] => handleMessage(c.codec, registers, offset)
         case c: Transform[_, _]     => c.from(loop(c.codec, offset))
         case c: Enum[_]             => c.valueOrThrow(input.readEnum())
-        case _                      => throw new Exception(s"Invalid root codec: $codec")
+        case _                      => throw new ProteusException(s"Invalid root codec: $codec")
       }
 
     loop(codec, offset)
@@ -1136,7 +1136,7 @@ object ProtobufCodec {
           case _: PrimitiveType.String  => ProtoIR.Type.String
           case _: PrimitiveType.Double  => ProtoIR.Type.Double
           case _: PrimitiveType.Float   => ProtoIR.Type.Float
-          case _                        => throw new Exception(s"Unsupported primitive type: $c")
+          case _                        => throw new ProteusException(s"Unsupported primitive type: $c")
         }
       case c: Message[_]           => ProtoIR.Type.RefType(c.name)
       case c: Enum[_]              => ProtoIR.Type.EnumRefType(c.name)

@@ -60,7 +60,7 @@ final case class Dependency(
   def render(options: List[ProtoIR.TopLevelOption]): String = {
     val conflicts = findConflicts
     if (conflicts.nonEmpty) {
-      throw new Exception(
+      throw new ProteusException(
         s"Conflicts found in dependency $dependencyName:\n ${conflicts.map { case (name, defs) => s"- Type `$name` is defined in different ways: \n${defs.mkString("\n")}" }.mkString("\n")}\n"
       )
     }

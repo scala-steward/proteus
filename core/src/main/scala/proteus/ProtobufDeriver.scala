@@ -277,7 +277,7 @@ case class ProtobufDeriver private (
                     Try(defaultFromReflect(field.value))
                       .orElse(Try(defaultFromRegister(registers(idx))))
                       .getOrElse(
-                        throw new Exception(
+                        throw new ProteusException(
                           s"Could not generate a default value for excluded field ${field.name} of type ${typeId.name}. Use `Schema#defaultValue` to assign an explicit default value to that type."
                         )
                       )
@@ -288,7 +288,7 @@ case class ProtobufDeriver private (
                   try addField(idx, field, instance)
                   catch {
                     case e: Exception =>
-                      throw new Exception(s"Error deriving field ${field.name} of type ${typeId.name}", e)
+                      throw new ProteusException(s"Error deriving field ${field.name} of type ${typeId.name}", e)
                   }
                 }
             }
@@ -327,7 +327,7 @@ case class ProtobufDeriver private (
       D.instance(cases.find(c => c.name == "Some").get.value.asRecord.get.fields.head.value.metadata)
         .map { instance =>
           if (ProtobufCodec.isRepeated(using instance))
-            throw new Exception(s"Unsupported usage of repeated inside optional type $typeId")
+            throw new ProteusException(s"Unsupported usage of repeated inside optional type $typeId")
           val oneof = modifiers.collectFirst { case Modifier.config(`oneOfModifier`, _) => true }.getOrElse(false)
           ProtobufCodec.Optional(instance, oneof).asInstanceOf[ProtobufCodec[A]]
         }
@@ -471,9 +471,9 @@ case class ProtobufDeriver private (
       if (isByteArray) ProtobufCodec.Bytes.asInstanceOf[ProtobufCodec[C[A]]]
       else {
         if (ProtobufCodec.isOptional(using instance))
-          throw new Exception(s"Unsupported usage of optional inside repeated type $typeId")
+          throw new ProteusException(s"Unsupported usage of optional inside repeated type $typeId")
         if (ProtobufCodec.isRepeated(using instance))
-          throw new Exception(s"Unsupported usage of repeated inside repeated type $typeId")
+          throw new ProteusException(s"Unsupported usage of repeated inside repeated type $typeId")
         ProtobufCodec.Repeated[C, A](
           instance,
           seqBinding.constructor,
@@ -646,7 +646,7 @@ case class ProtobufDeriver private (
           case _: PrimitiveType.Int     => 0
           case _: PrimitiveType.Long    => 0L
           case _: PrimitiveType.String  => ""
-          case _                        => throw new Exception(s"Unsupported primitive type: $primitiveType")
+          case _                        => throw new ProteusException(s"Unsupported primitive type: $primitiveType")
         }
       case ProtobufCodec.Message(_, fields, constructor, _, _, _, _, _, _, _) =>
         val registers = Registers(constructor.usedRegisters)
@@ -680,7 +680,7 @@ case class ProtobufDeriver private (
     innerSchema(c.value) match {
       case r: Reflect.Record[F, _] if r.fields.isEmpty =>
         hasBinding.record(r.metadata).constructor.construct(Registers(RegisterOffset.Zero), RegisterOffset.Zero)
-      case _                                           => throw new Exception(s"Unsupported enum case: $c")
+      case _                                           => throw new ProteusException(s"Unsupported enum case: $c")
     }
 
   private def isValidKeyType[A](codec: ProtobufCodec[A]): Boolean =
