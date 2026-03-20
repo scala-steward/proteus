@@ -547,7 +547,7 @@ case class ProtobufDeriver private (
     modifiers: Seq[Modifier.Reflect],
     defaultValue: Option[DynamicValue],
     examples: Seq[DynamicValue]
-  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[DynamicValue]] = Lazy.fail(new Exception("Dynamic is not supported"))
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[ProtobufCodec[DynamicValue]] = Lazy.fail(new ProteusException("Dynamic is not supported"))
 
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],

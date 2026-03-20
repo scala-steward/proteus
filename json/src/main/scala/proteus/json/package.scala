@@ -75,7 +75,7 @@ implicit def jsonWriterCodec[A](using codec: ProtobufCodec[A], registry: Registr
                       case _: PrimitiveType.String  => Json.fromString(b)
                       case _: PrimitiveType.Double  => Json.fromDoubleOrNull(b)
                       case _: PrimitiveType.Float   => Json.fromFloatOrNull(b)
-                      case _                        => throw new Exception(s"Unsupported primitive type: ${c.primitiveType}")
+                      case _                        => throw new ProteusException(s"Unsupported primitive type: ${c.primitiveType}")
                     }
                   case c: Enum[_]              => Json.fromString(c.namesByValue(b))
                   case c: Message[_]           =>

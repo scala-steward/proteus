@@ -7,7 +7,7 @@ import java.util.ArrayDeque
   *
   * Callers are expected to catch a failure, prepend context (message / field), and rethrow the SAME instance.
   */
-sealed abstract class ProtobufCodecFailure private[proteus] (val operation: String, cause0: Throwable) extends RuntimeException(null, cause0) {
+sealed abstract class ProtobufCodecFailure private[proteus] (val operation: String, cause0: Throwable) extends ProteusException(null, cause0) {
   private val segments = new ArrayDeque[String]()
 
   final private[proteus] def prepend(segment: String): Unit =
