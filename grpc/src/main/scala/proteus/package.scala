@@ -54,7 +54,6 @@ extension (field: ProtoIR.Field) {
       case mapType: ProtoIR.Type.MapType      =>
         fieldBuilder.setLabel(FieldDescriptorProto.Label.LABEL_REPEATED)
         fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_MESSAGE)
-        builder.getName()
         fieldBuilder.setTypeName(s".$parentFqn.${toUpperCamelCase(field.name)}Entry")
         val mapEntryBuilder      =
           DescriptorProto.newBuilder().setName(s"${toUpperCamelCase(field.name)}Entry").setOptions(MessageOptions.newBuilder().setMapEntry(true))

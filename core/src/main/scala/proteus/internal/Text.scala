@@ -1,8 +1,6 @@
 package proteus
 package internal
 
-import scala.annotation.tailrec
-
 sealed private[proteus] trait Text
 
 private[proteus] object Text {
@@ -20,18 +18,14 @@ private[proteus] object Text {
   def many(texts: List[Text]): Many = Many(texts)
 
   def intersperse(m: Many, sep: Text): Text = {
-    @tailrec
-    def go(acc: List[Text], rest: List[Text]): List[Text] =
-      rest match {
-        case head :: tl =>
-          if (tl == Nil) {
-            go(acc :+ head, tl)
-          } else {
-            go(acc :+ head :+ sep, tl)
-          }
-        case Nil        => acc
-      }
-    many(go(Nil, m.texts))
+    val buf  = List.newBuilder[Text]
+    var rest = m.texts
+    while (rest.nonEmpty) {
+      buf += rest.head
+      rest = rest.tail
+      if (rest.nonEmpty) buf += sep
+    }
+    many(buf.result())
   }
 
   def maybe(text: Option[Text]): Text.Many = Many(text.toList)

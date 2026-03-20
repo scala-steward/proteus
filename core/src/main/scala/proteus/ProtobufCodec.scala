@@ -756,7 +756,7 @@ object ProtobufCodec {
       val it = deconstructor.deconstruct(a)
       if (!it.isEmpty) {
         while (it.hasNext) {
-          val kv = it.next
+          it.next: Unit
           element.write(id, registers, cache)
         }
       }
