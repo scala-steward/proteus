@@ -161,7 +161,7 @@ case class ProtobufDeriver private (
         val reservedIndexes    = getReservedIndexes(modifiers).toSet
         val allReservedIndexes = reservedIndexes ++ getReservedIndexes(fields.flatMap(_.modifiers)).toSet
         val nested             = modifiers.collectFirst { case Modifier.config(`nestedModifier`, value) => value.toBooleanOption }.flatten
-        val builder            = Array.newBuilder[ProtobufCodec.MessageField[?]]
+        val builder            = IArray.newBuilder[ProtobufCodec.MessageField[?]]
         var id                 = 0
 
         def addField[A](index: Int, field: Term[F, ?, A], instance: ProtobufCodec[A]): Unit = {
@@ -233,7 +233,7 @@ case class ProtobufDeriver private (
               val empty   = Empty()
               builder += OneOfField(
                 name,
-                Array(
+                IArray(
                   SimpleField(s"no_$name", emptyId, Empty.emptyCodec.transform(_ => None, _ => empty), register, None, None),
                   SimpleField(s"${name}_value", valueId, codec.transform(Some(_), _.get), register, null, None)
                 ),
@@ -387,7 +387,7 @@ case class ProtobufDeriver private (
           val allReservedIndexes = reservedIndexes ++ getReservedIndexes(cases.flatMap(_.modifiers)).toSet
           var id                 = 1
           val register           = Register.Object(0)
-          val builder            = Array.newBuilder[SimpleField[?] | ExcludedField[?]]
+          val builder            = IArray.newBuilder[SimpleField[?] | ExcludedField[?]]
 
           cases.indices
             .foldLeft(Lazy(())) { (acc, idx) =>
@@ -428,7 +428,7 @@ case class ProtobufDeriver private (
               )
               val codec = ProtobufCodec.Message(
                 getTypeName(typeId, modifiers),
-                Array(field),
+                IArray(field),
                 new Constructor[A]   {
                   def usedRegisters: RegisterOffset                           = register.usedRegisters
                   def construct(in: Registers, baseOffset: RegisterOffset): A = register.get(in, baseOffset).asInstanceOf[A]
@@ -521,7 +521,7 @@ case class ProtobufDeriver private (
         ProtobufCodec.RepeatedMap[M, K, V](
           ProtobufCodec.Message(
             if (mapInProto) "" else s"${getTypeName(key.typeId, Nil)}${getTypeName(value.typeId, Nil)}Entry",
-            Array(
+            IArray(
               SimpleField("key", 1, keyInstance, keyRegister, key.getDefaultValue.getOrElse(getDefaultValue(using keyInstance)), None),
               SimpleField("value", 2, valueInstance, valueRegister, value.getDefaultValue.getOrElse(getDefaultValue(using valueInstance)), None)
             ),

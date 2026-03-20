@@ -247,7 +247,7 @@ object ProtobufCodec {
       */
     final case class OneOfField[A](
       name: String,
-      cases: Array[SimpleField[?] | ExcludedField[?]],
+      cases: IArray[SimpleField[?] | ExcludedField[?]],
       register: Register[Any],
       discriminator: Discriminator[A],
       defaultValue: A,
@@ -510,7 +510,7 @@ object ProtobufCodec {
     */
   final case class Message[A](
     name: String,
-    fields: Array[MessageField[?]],
+    fields: IArray[MessageField[?]],
     constructor: Constructor[A],
     deconstructor: Deconstructor[A],
     usedRegisters: RegisterOffset,
