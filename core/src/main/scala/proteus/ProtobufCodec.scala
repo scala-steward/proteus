@@ -524,7 +524,7 @@ object ProtobufCodec {
     /**
       * The list of all fields of the message (oneof fields are flattened into simple fields).
       */
-    val simpleFields: List[SimpleField[?]] = fields.toList.flatMap {
+    private[proteus] val simpleFields: List[SimpleField[?]] = fields.toList.flatMap {
       case f: SimpleField[?]   => List(f)
       case f: OneOfField[?]    => f.cases.toList.collect { case field: SimpleField[?] => field }
       case f: ExcludedField[?] => Nil
@@ -533,13 +533,13 @@ object ProtobufCodec {
     /**
       * An optimized map of the fields by their index.
       */
-    val fieldMap: IntDenseMap[IndexedField]  = IntDenseMap.from(fields.zipWithIndex.flatMap {
+    private[proteus] val fieldMap: IntDenseMap[IndexedField] = IntDenseMap.from(fields.zipWithIndex.flatMap {
       case (f: SimpleField[?], idx)   => List(f.id -> IndexedField(f, idx))
       case (f: OneOfField[?], idx)    => f.cases.collect { case field: SimpleField[?] => field.id -> IndexedField(field, idx) }.toList
       case (f: ExcludedField[?], idx) => Nil
     })
-    private[proteus] val useBuilder: Boolean = simpleFields.exists(_.useBuilder)
-    private[proteus] val useBitmask: Boolean = fields.length <= 64
+    private[proteus] val useBuilder: Boolean                 = simpleFields.exists(_.useBuilder)
+    private[proteus] val useBitmask: Boolean                 = fields.length <= 64
 
     private[proteus] def computeSize(a: A, id: Int, registers: Registers, cache: WriterCache): Int =
       wrapEncode(name) {
