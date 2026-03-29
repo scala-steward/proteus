@@ -4,7 +4,7 @@
 
 It is designed to be **code-first**, meaning that it is able to generate Protobuf codecs and .proto files directly from your Scala code without code generation.
 
-It also provides a **declarative way to define gRPC services** in Scala, a bit like [tapir](https://tapir.softwaremill.com/en/latest/) does for HTTP services. You can define messages, RPCs, and services in Scala, then generate clients and servers for them, using a variety of backends (direct style, Future, ZIO, fs2).
+It also provides a **declarative way to define gRPC services** in Scala, a bit like [tapir](https://tapir.softwaremill.com/en/latest/) does for HTTP services. You can define messages, RPCs, and services in Scala, then generate clients and servers for them, using a variety of backends (direct style, Future, ZIO, fs2, Ox).
 
 It is available for Scala 3.3.x LTS and later versions. The core module is available for both Scala JVM and Scala.js.
 
