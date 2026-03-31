@@ -22,5 +22,5 @@ features:
   - title: Schema Generation
     details: Generate .proto files to document your schema and efficiently track changes. Various customizations are available.
   - title: Declarative gRPC Services
-    details: Define gRPC services in Scala. Generate clients and servers from them using direct style, Future, ZIO, or fs2 backends.
+    details: Define gRPC services in Scala. Generate clients and servers from them using direct style, Future, ZIO, fs2 or Ox backends.
 ---
