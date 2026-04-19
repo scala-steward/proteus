@@ -10,35 +10,19 @@ proteus-diff focuses exclusively on proto3 syntax. proto2 files are rejected.
 
 ## Installation
 
-Download the archive for your platform from the [GitHub Releases](https://github.com/ghostdogpr/proteus/releases) page:
-
-- `proteus-diff-linux-x86_64.tar.gz`
-- `proteus-diff-macos-x86_64.tar.gz`
-- `proteus-diff-macos-aarch64.tar.gz`
-
-Extract and move the binary to a directory on your `PATH`:
+**Linux (x86_64):**
 
 ```bash
-tar -xzf proteus-diff-macos-aarch64.tar.gz
-chmod +x proteus-diff
-mv proteus-diff /usr/local/bin/
+curl -sL https://github.com/ghostdogpr/proteus/releases/latest/download/proteus-diff-linux-x86_64 > proteus-diff && chmod +x proteus-diff && ./proteus-diff --help
 ```
 
-::: warning macOS Gatekeeper
-The binary is not notarized, so macOS will block the first run with a message like *"Apple could not verify proteus-diff is free of malware"*. To allow it, remove the quarantine attribute:
+**macOS (Apple Silicon / Intel):**
 
 ```bash
-xattr -d com.apple.quarantine /usr/local/bin/proteus-diff
+ARCH=$(uname -m | sed 's/arm64/aarch64/') && curl -sL https://github.com/ghostdogpr/proteus/releases/latest/download/proteus-diff-macos-${ARCH} > proteus-diff && chmod +x proteus-diff && ./proteus-diff --help
 ```
 
-Alternatively, open **System Settings → Privacy & Security** after the first blocked run and click **Open Anyway**.
-:::
-
-Verify the installation:
-
-```bash
-proteus-diff --version
-```
+This downloads the binary to the current directory. Move it somewhere on your `PATH` (e.g. `sudo mv proteus-diff /usr/local/bin/`) to use it from anywhere.
 
 ## Quick start
 
