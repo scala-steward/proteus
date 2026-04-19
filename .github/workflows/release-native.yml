@@ -27,10 +27,12 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup GraalVM
-        uses: coursier/setup-action@v3
+        uses: graalvm/setup-graalvm@v1
         with:
-          jvm: graalvm-community:25
-          apps: sbt
+          java-version: '25'
+          distribution: 'graalvm-community'
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
       - name: Build native image
