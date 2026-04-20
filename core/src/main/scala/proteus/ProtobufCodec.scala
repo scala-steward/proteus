@@ -1178,13 +1178,35 @@ object ProtobufCodec {
       .toMap
       .filter((_, values) => values.length > 1)
 
-  // Strips the message-level typeId so two structurally-identical defs that differ only by the
-  // owning Scala type's TypeId (e.g. two case classes renamed to the same proto name) dedupe to one.
+  // Recursively strips typeIds so two structurally-identical defs that differ only by the
+  // owning Scala types' TypeIds (e.g. two distinct case classes renamed to the same proto name,
+  // including nested subtypes) dedupe to one.
   private[proteus] def dedupKey(d: ProtoIR.TopLevelDef): ProtoIR.TopLevelDef =
     d match {
-      case ProtoIR.TopLevelDef.MessageDef(m) => ProtoIR.TopLevelDef.MessageDef(m.copy(typeId = None))
+      case ProtoIR.TopLevelDef.MessageDef(m) => ProtoIR.TopLevelDef.MessageDef(stripIds(m))
       case ProtoIR.TopLevelDef.EnumDef(e)    => ProtoIR.TopLevelDef.EnumDef(e.copy(typeId = None))
       case other                             => other
+    }
+
+  private def stripIds(m: ProtoIR.Message): ProtoIR.Message =
+    m.copy(typeId = None, elements = m.elements.map(stripIds))
+
+  private def stripIds(e: ProtoIR.MessageElement): ProtoIR.MessageElement =
+    e match {
+      case ProtoIR.MessageElement.NestedMessageElement(nm) => ProtoIR.MessageElement.NestedMessageElement(stripIds(nm))
+      case ProtoIR.MessageElement.NestedEnumElement(ne)    => ProtoIR.MessageElement.NestedEnumElement(ne.copy(typeId = None))
+      case ProtoIR.MessageElement.FieldElement(f)          => ProtoIR.MessageElement.FieldElement(f.copy(ty = stripIds(f.ty)))
+      case ProtoIR.MessageElement.OneOfElement(o)          =>
+        ProtoIR.MessageElement.OneOfElement(o.copy(fields = o.fields.map(f => f.copy(ty = stripIds(f.ty)))))
+    }
+
+  private def stripIds(t: ProtoIR.Type): ProtoIR.Type =
+    t match {
+      case r: ProtoIR.Type.RefType     => r.copy(typeId = None)
+      case r: ProtoIR.Type.EnumRefType => r.copy(typeId = None)
+      case ProtoIR.Type.ListType(v)    => ProtoIR.Type.ListType(stripIds(v))
+      case ProtoIR.Type.MapType(k, v)  => ProtoIR.Type.MapType(stripIds(k), stripIds(v))
+      case other                       => other
     }
 
   private def resolvableNestedIn(d: ProtoIR.TopLevelDef, knownTypeIds: collection.Set[String]): Option[(String, String)] =
