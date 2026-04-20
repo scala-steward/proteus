@@ -165,30 +165,28 @@ object ProtoDiff {
     val enumRemovedRaw = enumRemovedDirect ++ enumRemovedFromFile
     val enumAddedRaw   = enumAddedDirect ++ enumAddedFromFile
 
-    val msgMoves: List[(String, String, String)] = msgRemovedRaw.flatMap { case (oldFile, name) =>
+    val msgMoves: List[(String, String, String, Message, Message)] = msgRemovedRaw.flatMap { case (oldFile, name) =>
       msgAddedRaw.find { case (newFile, n) => n == name && newFile != oldFile }.flatMap { case (newFile, _) =>
         for {
           oldMsg <- topMessages(oldFiles(oldFile)).get(name)
           newMsg <- topMessages(newFiles(newFile)).get(name)
-          if messageFingerprint(oldMsg) == messageFingerprint(newMsg)
-        } yield (oldFile, newFile, name)
+        } yield (oldFile, newFile, name, oldMsg, newMsg)
       }
     }
 
-    val enumMoves: List[(String, String, String)] = enumRemovedRaw.flatMap { case (oldFile, name) =>
+    val enumMoves: List[(String, String, String, Enum, Enum)] = enumRemovedRaw.flatMap { case (oldFile, name) =>
       enumAddedRaw.find { case (newFile, n) => n == name && newFile != oldFile }.flatMap { case (newFile, _) =>
         for {
           oldEnum <- topEnums(oldFiles(oldFile)).get(name)
           newEnum <- topEnums(newFiles(newFile)).get(name)
-          if enumFingerprint(oldEnum) == enumFingerprint(newEnum)
-        } yield (oldFile, newFile, name)
+        } yield (oldFile, newFile, name, oldEnum, newEnum)
       }
     }
 
-    val removedMovedMsg  = msgMoves.map { case (of, _, n) => (of, n) }.toSet
-    val addedMovedMsg    = msgMoves.map { case (_, nf, n) => (nf, n) }.toSet
-    val removedMovedEnum = enumMoves.map { case (of, _, n) => (of, n) }.toSet
-    val addedMovedEnum   = enumMoves.map { case (_, nf, n) => (nf, n) }.toSet
+    val removedMovedMsg  = msgMoves.map { case (of, _, n, _, _) => (of, n) }.toSet
+    val addedMovedMsg    = msgMoves.map { case (_, nf, n, _, _) => (nf, n) }.toSet
+    val removedMovedEnum = enumMoves.map { case (of, _, n, _, _) => (of, n) }.toSet
+    val addedMovedEnum   = enumMoves.map { case (_, nf, n, _, _) => (nf, n) }.toSet
 
     val filtered = changes.filterNot {
       case MessageRemoved(file :: Nil, name) => removedMovedMsg.contains((file, name))
@@ -199,9 +197,16 @@ object ProtoDiff {
     }
 
     // Group the move under the destination file so it appears alongside changes in that file.
+    // When the moved type was also modified, surface the internal changes under the destination file.
     val moves: List[Change] =
-      msgMoves.map { case (of, nf, n) => MessageMoved(List(nf), n, of, nf) } ++
-        enumMoves.map { case (of, nf, n) => EnumMoved(List(nf), n, of, nf) }
+      msgMoves.flatMap { case (of, nf, n, oldMsg, newMsg) =>
+        val innerDiffs = if (messageFingerprint(oldMsg) == messageFingerprint(newMsg)) Nil else diffMessage(oldMsg, newMsg, List(nf))
+        MessageMoved(List(nf), n, of, nf) :: innerDiffs
+      } ++
+        enumMoves.flatMap { case (of, nf, n, oldEnum, newEnum) =>
+          val innerDiffs = if (enumFingerprint(oldEnum) == enumFingerprint(newEnum)) Nil else diffEnum(oldEnum, newEnum, List(nf))
+          EnumMoved(List(nf), n, of, nf) :: innerDiffs
+        }
 
     filtered ++ moves
   }
