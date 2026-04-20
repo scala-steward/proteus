@@ -63,20 +63,39 @@ object ProtoIR {
   sealed trait TopLevelDef {
     def name: String
     def collectTypeReferences: Set[String]
+    def nestedIn: Option[String] = None
+    def typeId: Option[String]   = None
   }
   object TopLevelDef       {
     final case class MessageDef(message: Message) extends TopLevelDef {
       def name: String                       = message.name
       def collectTypeReferences: Set[String] = message.collectTypeReferences + name
+      override def nestedIn: Option[String]  = message.nestedIn
+      override def typeId: Option[String]    = message.typeId
     }
     final case class EnumDef(enumValue: Enum)     extends TopLevelDef {
       def name: String                       = enumValue.name
       def collectTypeReferences: Set[String] = Set(name)
+      override def nestedIn: Option[String]  = enumValue.nestedIn
+      override def typeId: Option[String]    = enumValue.typeId
     }
     final case class ServiceDef(service: Service) extends TopLevelDef {
       def name: String                       = service.name
       def collectTypeReferences: Set[String] = service.rpcs.flatMap(rpc => Set(rpc.request.fqn.name, rpc.response.fqn.name)).toSet
     }
+  }
+
+  sealed trait Placement {
+    def nested: Boolean          = this != Placement.TopLevel
+    def nestedIn: Option[String] = this match {
+      case Placement.NestedIn(t) => Some(t)
+      case _                     => None
+    }
+  }
+  object Placement       {
+    case object TopLevel                      extends Placement
+    case object Nested                        extends Placement
+    final case class NestedIn(target: String) extends Placement
   }
 
   final case class Message(
@@ -85,9 +104,12 @@ object ProtoIR {
     reserved: List[Reserved],
     comment: Option[String] = None,
     options: List[OptionValue] = List.empty,
-    nested: Boolean = false
+    placement: Placement = Placement.TopLevel,
+    typeId: Option[String] = None
   ) {
     lazy val collectTypeReferences: Set[String] = elements.toSet.flatMap(_.collectTypeReferences)
+    def nested: Boolean                         = placement.nested
+    def nestedIn: Option[String]                = placement.nestedIn
   }
 
   sealed trait MessageElement {
@@ -136,8 +158,12 @@ object ProtoIR {
     reserved: List[Reserved],
     comment: Option[String] = None,
     options: List[OptionValue] = List.empty,
-    nested: Boolean = false
-  )
+    placement: Placement = Placement.TopLevel,
+    typeId: Option[String] = None
+  ) {
+    def nested: Boolean          = placement.nested
+    def nestedIn: Option[String] = placement.nestedIn
+  }
 
   final case class Service(name: String, rpcs: List[Rpc], comment: Option[String] = None, options: List[OptionValue] = List.empty)
 
@@ -159,8 +185,8 @@ object ProtoIR {
         case _: ProtoIR.Type.PrimitiveType            => Set.empty
         case ProtoIR.Type.MapType(keyType, valueType) => keyType.collectTypeReferences ++ valueType.collectTypeReferences
         case ProtoIR.Type.ListType(valueType)         => valueType.collectTypeReferences
-        case ProtoIR.Type.RefType(name)               => Set(name)
-        case ProtoIR.Type.EnumRefType(name)           => Set(name)
+        case r: ProtoIR.Type.RefType                  => Set(r.name)
+        case r: ProtoIR.Type.EnumRefType              => Set(r.name)
       }
   }
   object Type       {
@@ -182,10 +208,10 @@ object ProtoIR {
     case object String   extends PrimitiveType
     case object Bytes    extends PrimitiveType
 
-    final case class MapType(keyType: Type, valueType: Type) extends Type
-    final case class ListType(valueType: Type)               extends Type
-    final case class RefType(name: String)                   extends Type
-    final case class EnumRefType(name: String)               extends Type
+    final case class MapType(keyType: Type, valueType: Type)                  extends Type
+    final case class ListType(valueType: Type)                                extends Type
+    final case class RefType(name: String, typeId: Option[String] = None)     extends Type
+    final case class EnumRefType(name: String, typeId: Option[String] = None) extends Type
   }
 
   final case class Fqn(packageName: Option[List[String]], name: String) {

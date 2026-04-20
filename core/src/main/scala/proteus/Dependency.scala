@@ -30,6 +30,9 @@ final case class Dependency(
   private[proteus] lazy val toImportStatement: ProtoIR.Statement.ImportStatement =
     ProtoIR.Statement.ImportStatement(s"${path.fold("")(_ + "/")}$dependencyName.proto")
 
+  private lazy val subDepPaths: Map[String, String] =
+    filteredDependencies.toList.flatMap(dep => ProtobufCodec.nestedInPaths(dep.types.toList)).toMap
+
   private[proteus] def hasAnyOf(typeNames: Set[String]): Boolean =
     types.exists(typeDef => typeNames.contains(typeDef.name))
 
@@ -58,7 +61,10 @@ final case class Dependency(
     * @param options options to write at the top of the .proto file.
     */
   def render(options: List[ProtoIR.TopLevelOption]): String = {
-    val conflicts = findConflicts
+    val rawTypes      = filteredTypes.toList
+    val ownPaths      = ProtobufCodec.nestedInPaths(rawTypes)
+    val resolvedTypes = ProtobufCodec.relocateNestedIn(rawTypes)
+    val conflicts     = ProtobufCodec.conflictsOf(resolvedTypes)
     if (conflicts.nonEmpty) {
       throw new ProteusException(
         s"Conflicts found in dependency $dependencyName:\n ${conflicts.map { case (name, defs) => s"- Type `$name` is defined in different ways: \n${defs.mkString("\n")}" }.mkString("\n")}\n"
@@ -69,7 +75,7 @@ final case class Dependency(
         packageName = packageName,
         options = options,
         statements = filteredDependencies.toList.map(_.toImportStatement) ++
-          filteredTypes.map(ProtoIR.Statement.TopLevelStatement(_)).toList
+          ProtobufCodec.qualifyReferences(resolvedTypes, subDepPaths ++ ownPaths).map(ProtoIR.Statement.TopLevelStatement(_))
       )
     )
   }
@@ -93,12 +99,7 @@ final case class Dependency(
     * The key is the type name, and the value is a list of definitions that conflict.
     */
   def findConflicts: Map[String, List[String]] =
-    types
-      .groupBy(_.name)
-      .view
-      .mapValues(_.map(Renderer.renderTopLevelDef).map(Text.renderText).toList.distinct)
-      .toMap
-      .filter((_, values) => values.length > 1)
+    ProtobufCodec.conflictsOf(ProtobufCodec.relocateNestedIn(types.toList))
 }
 
 object Dependency {

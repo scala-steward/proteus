@@ -160,7 +160,7 @@ case class ProtobufDeriver private (
         val fieldModifiers     = fields.flatMap(_.modifiers)
         val reservedIndexes    = getReservedIndexes(modifiers).toSet
         val allReservedIndexes = reservedIndexes ++ getReservedIndexes(fieldModifiers).toSet ++ getReservedFromIndexes(fieldModifiers).toSet
-        val nested             = modifiers.collectFirst { case Modifier.config(`nestedModifier`, value) => value.toBooleanOption }.flatten
+        val nested             = getNestedPlacement(modifiers)
         val builder            = IArray.newBuilder[ProtobufCodec.MessageField[?]]
         var id                 = 0
 
@@ -168,7 +168,7 @@ case class ProtobufDeriver private (
           val name     = getFieldName(field.name, field.modifiers)
           val register = registers(index)
           instance match {
-            case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneOfField[inner]), _, _, _, _, true, _, _, _)) =>
+            case t @ ProtobufCodec.Transform(from, to, ProtobufCodec.Message(_, Array(o: OneOfField[inner]), _, _, _, _, true, _, _, _, _)) =>
               val idIterator = getReservedIndexes(field.modifiers).iterator
               builder += OneOfField(
                 name,
@@ -199,7 +199,7 @@ case class ProtobufDeriver private (
                 catch { case _: Exception => null.asInstanceOf[A] },
                 o.comment
               )
-            case ProtobufCodec.Message(_, Array(o: OneOfField[?]), _, _, _, _, true, _, _, _)                                            =>
+            case ProtobufCodec.Message(_, Array(o: OneOfField[?]), _, _, _, _, true, _, _, _, _)                                            =>
               val idIterator = getReservedIndexes(field.modifiers).iterator
               builder += OneOfField(
                 name,
@@ -247,7 +247,7 @@ case class ProtobufDeriver private (
                 None,
                 getComment(field.modifiers)
               )
-            case instance                                                                                                                =>
+            case instance                                                                                                                   =>
               val fieldId = getReservedIndex(field.modifiers) match {
                 case Some(reservedIndex) => reservedIndex
                 case None                =>
@@ -310,6 +310,7 @@ case class ProtobufDeriver private (
               inline = false,
               nested = nested,
               comment = getComment(modifiers),
+              typeId = Some(typeId),
               customizeIR = messageCustomizer
             )
 
@@ -342,7 +343,7 @@ case class ProtobufDeriver private (
         c.modifiers.exists { case Modifier.config(`excludedModifier`, _) => true; case _ => false } ||
           c.value.modifiers.exists { case Modifier.config(`excludedModifier`, _) => true; case _ => false }
       )
-      val nested             = modifiers.collectFirst { case Modifier.config(`nestedModifier`, "true") => true }.getOrElse(false)
+      val nested             = getNestedPlacement(modifiers)
       val caseModifiers      = filteredCases.flatMap(_.modifiers)
       val reservedIndexes    = getReservedIndexes(modifiers).toSet
       val allReservedIndexes = reservedIndexes ++ getReservedIndexes(caseModifiers).toSet ++ getReservedFromIndexes(caseModifiers).toSet
@@ -376,6 +377,7 @@ case class ProtobufDeriver private (
           reservedIndexes.toList,
           nested = nested,
           getComment(modifiers),
+          typeId = Some(typeId),
           customizeIR = enumCustomizer
         )
       )
@@ -389,7 +391,7 @@ case class ProtobufDeriver private (
         } else {
           visited.put(typeId, ())
 
-          val nested             = modifiers.collectFirst { case Modifier.config(`nestedModifier`, value) => value.toBooleanOption }.flatten
+          val nested             = getNestedPlacement(modifiers)
           val inlineOneOf        = modifiers.collectFirst { case Modifier.config(`oneOfModifier`, value) => value.contains("inline") }.getOrElse(false)
           val nestedOneOf        = modifiers
             .collectFirst { case Modifier.config(`oneOfModifier`, value) => value.contains("nested") }
@@ -461,6 +463,7 @@ case class ProtobufDeriver private (
                 inline = inlineOneOf,
                 nested = nested,
                 comment = getComment(modifiers),
+                typeId = Some(typeId),
                 customizeIR = messageCustomizer
               )
 
@@ -546,7 +549,7 @@ case class ProtobufDeriver private (
             offset,
             Set.empty,
             inline = false,
-            nested = if (mapInProto) None else Some(true),
+            nested = if (mapInProto) None else Some(ProtobufCodec.NestedPlacement.Auto),
             comment = None
           ),
           binding.constructor,
@@ -610,6 +613,15 @@ case class ProtobufDeriver private (
         s"$prefix${toUpperSnakeCase(memberName)}$suffix"
       }
 
+  private def getNestedPlacement(modifiers: Seq[Modifier]): Option[ProtobufCodec.NestedPlacement] =
+    modifiers.collectFirst { case Modifier.config(`nestedModifier`, value) =>
+      value match {
+        case "true"  => Some(ProtobufCodec.NestedPlacement.Auto)
+        case "false" => Some(ProtobufCodec.NestedPlacement.Unnested)
+        case other   => decodeNestedIn(other).map(ProtobufCodec.NestedPlacement.In(_))
+      }
+    }.flatten
+
   private def getReservedIndexes(modifiers: Seq[Modifier]): List[Int] =
     modifiers.collect { case Modifier.config(`reservedModifier`, value) => value.split(",").map(_.trim.toInt).toList }.flatten.toSet.toList.sorted
 
@@ -658,7 +670,7 @@ case class ProtobufDeriver private (
 
   private def getDefaultValue[A](using codec: ProtobufCodec[A]): A =
     codec match {
-      case ProtobufCodec.Primitive(primitiveType)                             =>
+      case ProtobufCodec.Primitive(primitiveType)                                =>
         primitiveType match {
           case _: PrimitiveType.Boolean => false
           case _: PrimitiveType.Float   => 0.0f
@@ -668,7 +680,7 @@ case class ProtobufDeriver private (
           case _: PrimitiveType.String  => ""
           case _                        => throw new ProteusException(s"Unsupported primitive type: $primitiveType")
         }
-      case ProtobufCodec.Message(_, fields, constructor, _, _, _, _, _, _, _) =>
+      case ProtobufCodec.Message(_, fields, constructor, _, _, _, _, _, _, _, _) =>
         val registers = Registers(constructor.usedRegisters)
         fields.foreach {
           case field: SimpleField[?]   =>
@@ -679,20 +691,20 @@ case class ProtobufDeriver private (
             setToRegister(registers, RegisterOffset.Zero, field.register, field.defaultValue)
         }
         constructor.construct(registers, RegisterOffset.Zero)
-      case ProtobufCodec.Optional(_, _)                                       =>
+      case ProtobufCodec.Optional(_, _)                                          =>
         None.asInstanceOf[A]
-      case c: ProtobufCodec.Enum[A]                                           =>
+      case c: ProtobufCodec.Enum[A]                                              =>
         c.valueOrThrow(0)
-      case ProtobufCodec.RepeatedMap(_, constructor, _, _)                    =>
+      case ProtobufCodec.RepeatedMap(_, constructor, _, _)                       =>
         constructor.emptyObject.asInstanceOf[A]
-      case ProtobufCodec.Repeated(_, constructor, _, _, elementClassTag)      =>
+      case ProtobufCodec.Repeated(_, constructor, _, _, elementClassTag)         =>
         constructor.empty(elementClassTag)
-      case ProtobufCodec.Transform(from, _, codec)                            =>
+      case ProtobufCodec.Transform(from, _, codec)                               =>
         try from(getDefaultValue(using codec))
         catch { case _: Exception => null.asInstanceOf[A] }
-      case c: ProtobufCodec.RecursiveMessage[A]                               =>
+      case c: ProtobufCodec.RecursiveMessage[A]                                  =>
         getDefaultValue(using c.codec)
-      case ProtobufCodec.Bytes                                                =>
+      case ProtobufCodec.Bytes                                                   =>
         Array.empty[Byte]
     }
 

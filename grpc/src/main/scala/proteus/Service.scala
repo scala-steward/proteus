@@ -32,12 +32,24 @@ case class Service[Rpcs] private (
     */
   val fullyQualifiedName: String = packageName.fold(name)(s => s"$s.$name")
 
+  private case class ProtoIRResult(defs: List[ProtoIR.TopLevelDef], nestedInPaths: Map[String, String])
+
+  // Defs are kept un-relocated so that, when aggregated across services via `fromServices`, contributions
+  // for the same Scala type merge cleanly before relocation runs once at the dependency level.
+  private lazy val protoIRResult: ProtoIRResult = {
+    val raw         = ProtoIR.TopLevelDef.ServiceDef(ProtoIR.Service(name, rpcs.map(_.toProtoIR), comment)) ::
+      rpcs.flatMap(_.messagesToProtoIR)
+    val deduped     = raw.distinctBy(ProtobufCodec.dedupKey)
+    val nestedPaths = ProtobufCodec.nestedInPaths(deduped)
+    ProtoIRResult(deduped, nestedPaths)
+  }
+
   /**
     * Converts the service to a ProtoIR representation.
     */
-  lazy val toProtoIR: List[ProtoIR.TopLevelDef] =
-    (ProtoIR.TopLevelDef.ServiceDef(ProtoIR.Service(name, rpcs.map(_.toProtoIR), comment)) ::
-      rpcs.flatMap(_.messagesToProtoIR)).distinct
+  lazy val toProtoIR: List[ProtoIR.TopLevelDef] = protoIRResult.defs
+
+  private lazy val nestedInPaths: Map[String, String] = protoIRResult.nestedInPaths
 
   /**
     * All the dependencies of the service (including transitive dependencies).
@@ -47,8 +59,8 @@ case class Service[Rpcs] private (
   private lazy val typeReferences = toProtoIR.flatMap(_.collectTypeReferences).toSet
 
   private lazy val filteredTypes          = {
-    val dependencyTypes = allDependencies.filter(_.hasAnyOf(typeReferences)).flatMap(_.types).map(_.name)
-    toProtoIR.filterNot(d => dependencyTypes.contains(d.name))
+    val dependencyTypes = allDependencies.filter(_.hasAnyOf(typeReferences)).flatMap(_.types).map(_.name).toSet
+    ProtobufCodec.relocateNestedIn(toProtoIR.filterNot(d => dependencyTypes.contains(d.name)))
   }
   private lazy val filteredTypeReferences = filteredTypes.flatMap(_.collectTypeReferences).toSet
   private lazy val usedDependencies       = allDependencies.filter(_.hasAnyOf(filteredTypeReferences))
@@ -104,7 +116,7 @@ case class Service[Rpcs] private (
         packageName = packageName,
         options = options,
         statements = usedDependencies.toList.map(_.toImportStatement) ++
-          filteredTypes.map(ProtoIR.Statement.TopLevelStatement(_))
+          ProtobufCodec.qualifyReferences(filteredTypes, nestedInPaths).map(ProtoIR.Statement.TopLevelStatement(_))
       )
     )
   }
@@ -138,12 +150,7 @@ case class Service[Rpcs] private (
     * A conflict is a situation where the same type name is defined in different ways.
     */
   def findConflicts: Map[String, List[String]] =
-    toProtoIR
-      .groupBy(_.name)
-      .view
-      .mapValues(_.map(Renderer.renderTopLevelDef).map(Text.renderText).distinct)
-      .toMap
-      .filter((_, values) => values.length > 1)
+    ProtobufCodec.conflictsOf(filteredTypes)
 }
 
 object Service {
@@ -219,10 +226,23 @@ extension (dep: Dependency.type) {
     val requestResponseTypeNames =
       services.flatMap(_.rpcs.flatMap(rpc => List(rpc.toProtoIR.request.fqn.name, rpc.toProtoIR.response.fqn.name))).toSet
 
+    // A type whose `nestedIn` chain roots at a request/response must travel with that parent (which
+    // stays in the service file), so it doesn't belong in the shared dependency.
+    val byTypeId                                                                               = filteredTypes.iterator.flatMap(d => d.typeId.map(_ -> d)).toMap
+    def rootsAtRequestResponse(d: ProtoIR.TopLevelDef, seen: Set[String] = Set.empty): Boolean =
+      d.nestedIn match {
+        case Some(parentTid) if !seen.contains(parentTid) =>
+          byTypeId.get(parentTid) match {
+            case Some(parent) =>
+              requestResponseTypeNames.contains(parent.name) || rootsAtRequestResponse(parent, seen + parentTid)
+            case None         => false
+          }
+        case _                                            => false
+      }
+
     val commonTypes = filteredTypes.filterNot {
-      case ProtoIR.TopLevelDef.MessageDef(msg)  => requestResponseTypeNames.contains(msg.name)
-      case ProtoIR.TopLevelDef.EnumDef(enumDef) => requestResponseTypeNames.contains(enumDef.name)
-      case ProtoIR.TopLevelDef.ServiceDef(_)    => true
+      case _: ProtoIR.TopLevelDef.ServiceDef => true
+      case d                                 => requestResponseTypeNames.contains(d.name) || rootsAtRequestResponse(d)
     }
 
     Dependency(dependencyName, packageName, path, commonTypes, dependencies)
