@@ -219,7 +219,7 @@ extension (dep: Dependency.type) {
     fromServices(dependencyName, Some(packageName), Some(path), services*)
 
   private def fromServices(dependencyName: String, packageName: Option[String], path: Option[String], services: Service[?]*): Dependency = {
-    val allTypes      = ListSet.from(services.flatMap(_.toProtoIR))
+    val allTypes      = ListSet.from(services.flatMap(_.toProtoIR).distinctBy(ProtobufCodec.dedupKey))
     val dependencies  = services.toList.flatMap(_.allDependencies).distinct
     val filteredTypes = allTypes.filterNot(t => dependencies.exists(_.hasAnyOf(Set(t.name))))
 

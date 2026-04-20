@@ -61,7 +61,7 @@ final case class Dependency(
     * @param options options to write at the top of the .proto file.
     */
   def render(options: List[ProtoIR.TopLevelOption]): String = {
-    val rawTypes      = filteredTypes.toList
+    val rawTypes      = filteredTypes.toList.distinctBy(ProtobufCodec.dedupKey)
     val ownPaths      = ProtobufCodec.nestedInPaths(rawTypes)
     val resolvedTypes = ProtobufCodec.relocateNestedIn(rawTypes)
     val conflicts     = ProtobufCodec.conflictsOf(resolvedTypes)
