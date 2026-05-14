@@ -14,3 +14,7 @@ It is available for Scala 3.3.x LTS and later versions. The core module is avail
 Proteus also ships **[proteus-diff](https://ghostdogpr.github.io/proteus/proteus-diff)**, a standalone native CLI for detecting breaking changes between `.proto` schemas, usable with any Protobuf project, no JVM required.
 
 ### Consult the [Documentation](https://ghostdogpr.github.io/proteus/) to learn how to use Proteus.
+
+### Watch the talk: Proteus: Protobuf goes Scala-first
+
+[![Proteus: Protobuf goes Scala-first](https://img.youtube.com/vi/zTq9gdImhpk/maxresdefault.jpg)](https://youtu.be/zTq9gdImhpk)
