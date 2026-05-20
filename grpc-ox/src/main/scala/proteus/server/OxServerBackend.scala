@@ -17,11 +17,15 @@ import ox.flow.Flow
   *
   * @param interceptor an interceptor that can run on every request.
   * @param runner an InScopeRunner used to start handler threads within a structured concurrency scope.
+  * @param prefetchN initial in-flight request window for client-streaming / bidi RPCs; also sizes the request channel buffer.
   */
 class OxServerBackend[Context](
   interceptor: ServerContextInterceptor[[A] =>> A, Flow, RequestResponseMetadata, Context],
-  runner: InScopeRunner
+  runner: InScopeRunner,
+  prefetchN: Int
 ) extends ServerBackend[[A] =>> A, Flow, Context] {
+
+  private val prefetch: Int = math.max(prefetchN, 1)
 
   final private class WorkerHandle {
     private val forkRef   = new AtomicReference[CancellableFork[Unit]](null)
@@ -70,6 +74,21 @@ class OxServerBackend[Context](
     call.sendMessage(message)
   }
 
+  private def sendResponseFlow[Request, Response](
+    call: ServerCall[Request, Response],
+    responseFlow: Flow[Response],
+    readySignal: Channel[Unit]
+  ): Unit = {
+    var headersSent = false
+    responseFlow.runForeach { resp =>
+      if (!headersSent) {
+        call.sendHeaders(new Metadata())
+        headersSent = true
+      }
+      sendWhenReady(call, resp, readySignal)
+    }
+  }
+
   private def forkHandler[Request, Response](
     call: ServerCall[Request, Response],
     workerHandle: WorkerHandle
@@ -90,21 +109,18 @@ class OxServerBackend[Context](
       case ServerRpc.Unary(rpc, logic)           =>
         new ServerCallHandler[Request, Response] {
           def startCall(call: ServerCall[Request, Response], headers: Metadata): ServerCall.Listener[Request] = {
-            call.request(1)
-            new ServerCall.Listener[Request] {
-              override def onMessage(message: Request): Unit =
+            val responseMetadata = new Metadata()
+            val ctx              = RequestResponseMetadata(headers, responseMetadata)
+            call.request(2)
+            new UnaryInputListener[Request, Response](call) {
+              protected def onRequest(req: Request): Unit =
                 try {
-                  val responseMetadata = new Metadata()
-                  val response         =
-                    interceptor.unary(ctx => logic(message, ctx))(using rpc.requestCodec, rpc.responseCodec)(message)(
-                      RequestResponseMetadata(headers, responseMetadata)
-                    )
-                  call.sendHeaders(new Metadata())
-                  call.sendMessage(response)
+                  val response =
+                    interceptor.unary(c => logic(req, c))(using rpc.requestCodec, rpc.responseCodec)(req)(ctx)
+                  ServerBackend.sendUnaryResponse(call, response)
                   call.close(Status.OK, responseMetadata)
                 } catch {
-                  case NonFatal(ex) =>
-                    ServerBackend.closeCallWithError(call, ex)
+                  case NonFatal(ex) => ServerBackend.closeCallWithError(call, ex, responseMetadata)
                 }
             }
           }
@@ -112,10 +128,10 @@ class OxServerBackend[Context](
       case ServerRpc.ClientStreaming(rpc, logic) =>
         new ServerCallHandler[Request, Response] {
           def startCall(call: ServerCall[Request, Response], headers: Metadata): ServerCall.Listener[Request] = {
-            val requestChannel = Channel.buffered[Request](1)
+            val requestChannel = Channel.buffered[Request](prefetch)
             val readySignal    = Channel.buffered[Unit](1)
             val workerHandle   = new WorkerHandle
-            call.request(1)
+            call.request(prefetch)
 
             forkHandler(call, workerHandle) {
               val requestFlow = Flow.fromSource(requestChannel).tap(_ => call.request(1))
@@ -125,8 +141,7 @@ class OxServerBackend[Context](
                 interceptor.clientStreaming[Request, Response](req => ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(
                   requestFlow
                 )(RequestResponseMetadata(headers, responseMetadata))
-              call.sendHeaders(new Metadata())
-              call.sendMessage(response)
+              ServerBackend.sendUnaryResponse(call, response)
               call.close(Status.OK, responseMetadata)
             }
 
@@ -148,8 +163,7 @@ class OxServerBackend[Context](
                     interceptor.serverStreaming(ctx => logic(message, ctx))(using rpc.requestCodec, rpc.responseCodec)(message)(
                       RequestResponseMetadata(headers, responseMetadata)
                     )
-                  call.sendHeaders(new Metadata())
-                  responseFlow.runForeach(resp => sendWhenReady(call, resp, readySignal))
+                  sendResponseFlow(call, responseFlow, readySignal)
                   call.close(Status.OK, responseMetadata)
                 }
 
@@ -166,10 +180,10 @@ class OxServerBackend[Context](
       case ServerRpc.BidiStreaming(rpc, logic)   =>
         new ServerCallHandler[Request, Response] {
           def startCall(call: ServerCall[Request, Response], headers: Metadata): ServerCall.Listener[Request] = {
-            val requestChannel = Channel.buffered[Request](1)
+            val requestChannel = Channel.buffered[Request](prefetch)
             val readySignal    = Channel.buffered[Unit](1)
             val workerHandle   = new WorkerHandle
-            call.request(1)
+            call.request(prefetch)
 
             forkHandler(call, workerHandle) {
               val requestFlow = Flow.fromSource(requestChannel).tap(_ => call.request(1))
@@ -179,8 +193,7 @@ class OxServerBackend[Context](
                 interceptor.bidiStreaming[Request, Response](req => ctx => logic(req, ctx))(using rpc.requestCodec, rpc.responseCodec)(
                   requestFlow
                 )(RequestResponseMetadata(headers, responseMetadata))
-              call.sendHeaders(new Metadata())
-              responseFlow.runForeach(resp => sendWhenReady(call, resp, readySignal))
+              sendResponseFlow(call, responseFlow, readySignal)
               call.close(Status.OK, responseMetadata)
             }
 
@@ -196,19 +209,22 @@ object OxServerBackend {
     * Creates a new Ox server backend with the given InScopeRunner.
     *
     * @param runner an InScopeRunner used to start handler threads within a structured concurrency scope.
+    * @param prefetchN initial in-flight request window for client-streaming / bidi RPCs.
     */
-  def apply(runner: InScopeRunner): OxServerBackend[RequestResponseMetadata] =
-    new OxServerBackend(ServerInterceptor.empty, runner)
+  def apply(runner: InScopeRunner, prefetchN: Int = 16): OxServerBackend[RequestResponseMetadata] =
+    new OxServerBackend(ServerInterceptor.empty, runner, prefetchN)
 
   /**
     * Creates a new Ox server backend with the given interceptor and InScopeRunner.
     *
     * @param interceptor an interceptor that can run on every request.
     * @param runner an InScopeRunner used to start handler threads within a structured concurrency scope.
+    * @param prefetchN initial in-flight request window for client-streaming / bidi RPCs.
     */
   def apply[Context](
     interceptor: ServerContextInterceptor[[A] =>> A, Flow, RequestResponseMetadata, Context],
-    runner: InScopeRunner
+    runner: InScopeRunner,
+    prefetchN: Int
   ): OxServerBackend[Context] =
-    new OxServerBackend(interceptor, runner)
+    new OxServerBackend(interceptor, runner, prefetchN)
 }

@@ -60,20 +60,21 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val reflectionService = io.grpc.protobuf.services.ProtoReflectionServiceV1.newInstance
           val server            = NettyServerBuilder.forPort(port).addService(serverService).addService(reflectionService).build().start()
           val channel           = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-          val clientBackend     = new Fs2ClientBackend[IO](channel, dispatcher)
+          val clientBackend     = Fs2ClientBackend[IO](channel, dispatcher)
 
-          val program = for {
-            client        <- reflectionClient(clientBackend)
-            requestStream  = Stream.emit(ServerReflectionRequest("localhost", MessageRequest.ListServices("")))
-            responseStream = client(requestStream)
-            responses     <- responseStream.compile.toList
-          } yield responses.headOption
-            .flatMap {
-              case ServerReflectionResponse(_, _, MessageResponse.ListServicesResponse(services)) =>
-                Some(services.map(_.name))
-              case _                                                                              => None
-            }
-            .getOrElse(List.empty)
+          val client         = reflectionClient(clientBackend)
+          val requestStream  = Stream.emit(ServerReflectionRequest("localhost", MessageRequest.ListServices("")))
+          val responseStream = client(requestStream)
+          val program        =
+            for {
+              responses <- responseStream.compile.toList
+            } yield responses.headOption
+              .flatMap {
+                case ServerReflectionResponse(_, _, MessageResponse.ListServicesResponse(services)) =>
+                  Some(services.map(_.name))
+                case _                                                                              => None
+              }
+              .getOrElse(List.empty)
 
           program.guarantee {
             IO {
@@ -99,10 +100,10 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val reflectionService = io.grpc.protobuf.services.ProtoReflectionServiceV1.newInstance
           val server            = NettyServerBuilder.forPort(port).addService(serverService).addService(reflectionService).build().start()
           val channel           = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-          val clientBackend     = new Fs2ClientBackend[IO](channel, dispatcher)
+          val clientBackend     = Fs2ClientBackend[IO](channel, dispatcher)
 
+          val client  = reflectionClient(clientBackend)
           val program = for {
-            client    <- reflectionClient(clientBackend)
             // Request file descriptor for the reflection service itself (which should be available)
             responses <- client(
                            Stream.emit(
@@ -139,12 +140,12 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val port          = 6001
           val server        = NettyServerBuilder.forPort(port).addService(serverService).build().start()
           val channel       = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-          val clientBackend = new Fs2ClientBackend[IO](channel, dispatcher)
+          val clientBackend = Fs2ClientBackend[IO](channel, dispatcher)
 
+          val client1 = clientBackend.client(complexRpc, testService)
+          val client2 = clientBackend.client(complexRpc, testService)
+          val client3 = clientBackend.client(complexRpc, testService)
           val program = for {
-            client1 <- clientBackend.client(complexRpc, testService)
-            client2 <- clientBackend.client(complexRpc, testService)
-            client3 <- clientBackend.client(complexRpc, testService)
 
             response1 <- client1(sampleRequest)
             response2 <- client2(sampleRequest.copy(contact = ContactMethod.Phone("555-0123", "US"), priority = Priority.Low))
@@ -174,14 +175,14 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val port          = 6002
           val server        = NettyServerBuilder.forPort(port).addService(metadataServerService).build().start()
           val channel       = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-          val clientBackend = new Fs2ClientBackend[IO](channel, dispatcher)
+          val clientBackend = Fs2ClientBackend[IO](channel, dispatcher)
 
           val requestMetadata = new Metadata()
           requestMetadata.put(Metadata.Key.of("client-id", Metadata.ASCII_STRING_MARSHALLER), "fs2-client-101")
           requestMetadata.put(Metadata.Key.of("user-agent", Metadata.ASCII_STRING_MARSHALLER), "grpc-fs2/1.0")
 
+          val client  = clientBackend.clientWithMetadata(metadataRpc, metadataService)
           val program = for {
-            client <- clientBackend.clientWithMetadata(metadataRpc, metadataService)
             result <- client(MetadataRequest("hello fs2 metadata"), requestMetadata)
           } yield result
 
@@ -209,12 +210,12 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val port          = 6003
           val server        = NettyServerBuilder.forPort(port).addService(streamingServerService).build().start()
           val channel       = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-          val clientBackend = new Fs2ClientBackend[IO](channel, dispatcher)
+          val clientBackend = Fs2ClientBackend[IO](channel, dispatcher)
 
-          val program = for {
-            client       <- clientBackend.client(clientStreamingRpc, clientStreamingService)
-            requestStream = Stream(StreamRequest(1), StreamRequest(2), StreamRequest(3), StreamRequest(4))
-            response     <- client(requestStream)
+          val client        = clientBackend.client(clientStreamingRpc, clientStreamingService)
+          val requestStream = Stream(StreamRequest(1), StreamRequest(2), StreamRequest(3), StreamRequest(4))
+          val program       = for {
+            response <- client(requestStream)
           } yield response
 
           program.guarantee {
@@ -241,12 +242,12 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val port          = 6004
           val server        = NettyServerBuilder.forPort(port).addService(streamingServerService).build().start()
           val channel       = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-          val clientBackend = new Fs2ClientBackend[IO](channel, dispatcher)
+          val clientBackend = Fs2ClientBackend[IO](channel, dispatcher)
 
-          val program = for {
-            client        <- clientBackend.client(serverStreamingRpc, serverStreamingService)
-            responseStream = client(StreamRequest(5))
-            responses     <- responseStream.compile.toList
+          val client         = clientBackend.client(serverStreamingRpc, serverStreamingService)
+          val responseStream = client(StreamRequest(5))
+          val program        = for {
+            responses <- responseStream.compile.toList
           } yield responses
 
           program.guarantee {
@@ -273,13 +274,13 @@ object Fs2BackendSpec extends ZIOSpecDefault {
           val port          = 6005
           val server        = NettyServerBuilder.forPort(port).addService(streamingServerService).build().start()
           val channel       = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
-          val clientBackend = new Fs2ClientBackend[IO](channel, dispatcher)
+          val clientBackend = Fs2ClientBackend[IO](channel, dispatcher)
 
-          val program = for {
-            client        <- clientBackend.client(bidiStreamingRpc, bidiStreamingService)
-            requestStream  = Stream(StreamRequest(10), StreamRequest(20), StreamRequest(30))
-            responseStream = client(requestStream)
-            responses     <- responseStream.compile.toList
+          val client         = clientBackend.client(bidiStreamingRpc, bidiStreamingService)
+          val requestStream  = Stream(StreamRequest(10), StreamRequest(20), StreamRequest(30))
+          val responseStream = client(requestStream)
+          val program        = for {
+            responses <- responseStream.compile.toList
           } yield responses
 
           program.guarantee {
