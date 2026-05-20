@@ -16,7 +16,7 @@ import proteus.server.ServerInterceptor
   * Streaming is supported using [[fs2.Stream]].
   *
   * @param interceptor an interceptor that can run on every request.
-  * @param dispatcher a Cats Effect [[Dispatcher]] used to bridge gRPC's synchronous callbacks into `F`.
+  * @param dispatcher a Cats Effect `Dispatcher` used to bridge gRPC's synchronous callbacks into `F`.
   * @param prefetchN initial in-flight request window for client-streaming / bidi RPCs; the window is refilled one message at a time as the handler consumes from the request stream.
   */
 class Fs2ServerBackend[F[_]: Async, G[_], Context](

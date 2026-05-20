@@ -4,7 +4,7 @@ package server
 import io.grpc.{Metadata, ServerCall, Status}
 
 /**
-  * A [[ServerCall.Listener]] base class for RPCs with a single (unary) request.
+  * A `ServerCall.Listener` base class for RPCs with a single (unary) request.
   *
   * Implements the gRPC protocol contract: exactly one `onMessage` before
   * `onHalfClose`. A protocol-violating client that sends zero or more than one

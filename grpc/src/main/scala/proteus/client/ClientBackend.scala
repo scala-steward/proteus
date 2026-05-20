@@ -220,7 +220,7 @@ object ClientBackend {
     Status.INTERNAL.withDescription(e.getMessage).withCause(e).asException()
 
   /**
-    * Combines response headers and trailers into a fresh [[Metadata]]; null arguments are treated as absent.
+    * Combines response headers and trailers into a fresh `Metadata`; null arguments are treated as absent.
     */
   def mergeMetadata(headers: Metadata, trailers: Metadata): Metadata = {
     val combined = new Metadata()

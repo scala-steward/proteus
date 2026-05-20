@@ -14,7 +14,7 @@ import io.grpc.*
   * Streaming is supported using [[fs2.Stream]].
   *
   * @param channel the gRPC channel used to issue calls.
-  * @param dispatcher a Cats Effect [[Dispatcher]] used to bridge gRPC's synchronous callbacks into `F`.
+  * @param dispatcher a Cats Effect `Dispatcher` used to bridge gRPC's synchronous callbacks into `F`.
   * @param prefetchN initial in-flight response window for server-streaming / bidi RPCs; the window is refilled one message at a time as the consumer pulls.
   */
 class Fs2ClientBackend[F[_]: Async](channel: Channel, dispatcher: Dispatcher[F], prefetchN: Int) extends ClientBackend[F, Stream[F, *]] {
