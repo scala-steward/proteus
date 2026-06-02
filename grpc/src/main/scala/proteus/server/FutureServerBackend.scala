@@ -14,8 +14,10 @@ import io.grpc.{Metadata, ServerCall, ServerCallHandler, Status}
   */
 class FutureServerBackend[Context](interceptor: ServerContextInterceptor[Future, Future, GrpcContext, Context])
   extends ServerBackend[Future, Future, Context] {
+  type Tag[A] = NoTag[A]
+
   def handler[Request, Response](
-    rpc: ServerRpc[Future, Future, Context, Request, Response]
+    rpc: ServerRpc[Future, Future, Tag, Context, Request, Response]
   ): ServerCallHandler[Request, Response] =
     rpc match {
       case server.ServerRpc.Unary(rpc, logic) =>

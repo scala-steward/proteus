@@ -24,6 +24,7 @@ class Fs2ServerBackend[F[_]: Async, G[_], Context](
   dispatcher: Dispatcher[F],
   prefetchN: Int
 ) extends ServerBackend[G, Stream[G, *], Context] {
+  type Tag[A] = NoTag[A]
 
   private val F        = Async[F]
   private val prefetch = math.max(prefetchN, 1)
@@ -93,13 +94,13 @@ class Fs2ServerBackend[F[_]: Async, G[_], Context](
     F.delay(ServerBackend.sendUnaryResponse(call, response))
 
   def handler[Request, Response](
-    rpc: ServerRpc[G, Stream[G, *], Context, Request, Response]
+    rpc: ServerRpc[G, Stream[G, *], Tag, Context, Request, Response]
   ): ServerCallHandler[Request, Response] =
     rpc match {
-      case ServerRpc.Unary(rpc, logic)           => unaryHandler(rpc, logic)
-      case ServerRpc.ClientStreaming(rpc, logic) => clientStreamingHandler(rpc, logic)
-      case ServerRpc.ServerStreaming(rpc, logic) => serverStreamingHandler(rpc, logic)
-      case ServerRpc.BidiStreaming(rpc, logic)   => bidiStreamingHandler(rpc, logic)
+      case ServerRpc.Unary(rpc, logic)               => unaryHandler(rpc, logic)
+      case ServerRpc.ClientStreaming(rpc, logic, _)  => clientStreamingHandler(rpc, logic)
+      case ServerRpc.ServerStreaming(rpc, logic, _)  => serverStreamingHandler(rpc, logic)
+      case ServerRpc.BidiStreaming(rpc, logic, _, _) => bidiStreamingHandler(rpc, logic)
     }
 
   private def unaryHandler[Request, Response](

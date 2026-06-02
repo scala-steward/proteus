@@ -8,7 +8,9 @@ import io.grpc.{Metadata, ServerCall, ServerCallHandler, Status, StatusException
   * The backend is parameterized by the type of unary and streaming RPCs it can handle, and the context type for the server.
   */
 trait ServerBackend[Unary[_], Streaming[_], Context] { self =>
-  def handler[Request, Response](rpc: ServerRpc[Unary, Streaming, Context, Request, Response]): ServerCallHandler[Request, Response]
+  type Tag[A]
+
+  def handler[Request, Response](rpc: ServerRpc[Unary, Streaming, Tag, Context, Request, Response]): ServerCallHandler[Request, Response]
 }
 
 object ServerBackend {

@@ -13,7 +13,9 @@ import io.grpc.{Metadata, ServerCall, ServerCallHandler, Status}
   */
 class DirectServerBackend[Context](interceptor: ServerContextInterceptor[[A] =>> A, [A] =>> A, GrpcContext, Context])
   extends ServerBackend[[A] =>> A, [A] =>> A, Context] {
-  def handler[Request, Response](rpc: ServerRpc[[A] =>> A, [A] =>> A, Context, Request, Response]): ServerCallHandler[Request, Response] =
+  type Tag[A] = NoTag[A]
+
+  def handler[Request, Response](rpc: ServerRpc[[A] =>> A, [A] =>> A, Tag, Context, Request, Response]): ServerCallHandler[Request, Response] =
     rpc match {
       case server.ServerRpc.Unary(rpc, logic) =>
         new ServerCallHandler[Request, Response] {

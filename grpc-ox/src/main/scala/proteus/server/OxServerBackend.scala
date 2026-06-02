@@ -24,6 +24,7 @@ class OxServerBackend[Context](
   runner: InScopeRunner,
   prefetchN: Int
 ) extends ServerBackend[[A] =>> A, Flow, Context] {
+  type Tag[A] = NoTag[A]
 
   private val prefetch: Int = math.max(prefetchN, 1)
 
@@ -104,9 +105,9 @@ class OxServerBackend[Context](
       workerHandle.publish(fork)
     }
 
-  def handler[Request, Response](rpc: ServerRpc[[A] =>> A, Flow, Context, Request, Response]): ServerCallHandler[Request, Response] =
+  def handler[Request, Response](rpc: ServerRpc[[A] =>> A, Flow, Tag, Context, Request, Response]): ServerCallHandler[Request, Response] =
     rpc match {
-      case ServerRpc.Unary(rpc, logic)           =>
+      case ServerRpc.Unary(rpc, logic)               =>
         new ServerCallHandler[Request, Response] {
           def startCall(call: ServerCall[Request, Response], headers: Metadata): ServerCall.Listener[Request] = {
             val responseMetadata = new Metadata()
@@ -125,7 +126,7 @@ class OxServerBackend[Context](
             }
           }
         }
-      case ServerRpc.ClientStreaming(rpc, logic) =>
+      case ServerRpc.ClientStreaming(rpc, logic, _)  =>
         new ServerCallHandler[Request, Response] {
           def startCall(call: ServerCall[Request, Response], headers: Metadata): ServerCall.Listener[Request] = {
             val requestChannel = Channel.buffered[Request](prefetch)
@@ -148,7 +149,7 @@ class OxServerBackend[Context](
             streamingListener(requestChannel, workerHandle, readySignal)
           }
         }
-      case ServerRpc.ServerStreaming(rpc, logic) =>
+      case ServerRpc.ServerStreaming(rpc, logic, _)  =>
         new ServerCallHandler[Request, Response] {
           def startCall(call: ServerCall[Request, Response], headers: Metadata): ServerCall.Listener[Request] = {
             val readySignal  = Channel.buffered[Unit](1)
@@ -177,7 +178,7 @@ class OxServerBackend[Context](
             }
           }
         }
-      case ServerRpc.BidiStreaming(rpc, logic)   =>
+      case ServerRpc.BidiStreaming(rpc, logic, _, _) =>
         new ServerCallHandler[Request, Response] {
           def startCall(call: ServerCall[Request, Response], headers: Metadata): ServerCall.Listener[Request] = {
             val requestChannel = Channel.buffered[Request](prefetch)

@@ -67,6 +67,7 @@ trait ClientBackendUnary[Unary[_]] {
   * @param Streaming the type returned by the streaming client methods.
   */
 trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
+  type Tag[A]
 
   /**
     * Creates a new client streaming client.
@@ -77,7 +78,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
   def client[Rpcs, Request, Response](
     rpc: Rpc.ClientStreaming[Request, Response],
     service: Service[Rpcs]
-  )(using HasRpc[Rpcs, rpc.type]): Streaming[Request] => Unary[Response] =
+  )(using HasRpc[Rpcs, rpc.type], Tag[Request]): Streaming[Request] => Unary[Response] =
     client(rpc, service, identity)
 
   /**
@@ -91,7 +92,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
     rpc: Rpc.ClientStreaming[Request, Response],
     service: Service[Rpcs],
     options: CallOptions => CallOptions
-  )(using HasRpc[Rpcs, rpc.type]): Streaming[Request] => Unary[Response]
+  )(using HasRpc[Rpcs, rpc.type], Tag[Request]): Streaming[Request] => Unary[Response]
 
   /**
     * Creates a new server streaming client.
@@ -102,7 +103,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
   def client[Rpcs, Request, Response](
     rpc: Rpc.ServerStreaming[Request, Response],
     service: Service[Rpcs]
-  )(using HasRpc[Rpcs, rpc.type]): Request => Streaming[Response] = client(rpc, service, identity)
+  )(using HasRpc[Rpcs, rpc.type], Tag[Response]): Request => Streaming[Response] = client(rpc, service, identity)
 
   /**
     * Creates a new server streaming client.
@@ -115,7 +116,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
     rpc: Rpc.ServerStreaming[Request, Response],
     service: Service[Rpcs],
     options: CallOptions => CallOptions
-  )(using HasRpc[Rpcs, rpc.type]): Request => Streaming[Response]
+  )(using HasRpc[Rpcs, rpc.type], Tag[Response]): Request => Streaming[Response]
 
   /**
     * Creates a new bidirectional streaming client.
@@ -126,7 +127,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
   def client[Rpcs, Request, Response](
     rpc: Rpc.BidiStreaming[Request, Response],
     service: Service[Rpcs]
-  )(using HasRpc[Rpcs, rpc.type]): Streaming[Request] => Streaming[Response] = client(rpc, service, identity)
+  )(using HasRpc[Rpcs, rpc.type], Tag[Request], Tag[Response]): Streaming[Request] => Streaming[Response] = client(rpc, service, identity)
 
   /**
     * Creates a new bidirectional streaming client.
@@ -139,7 +140,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
     rpc: Rpc.BidiStreaming[Request, Response],
     service: Service[Rpcs],
     options: CallOptions => CallOptions
-  )(using HasRpc[Rpcs, rpc.type]): Streaming[Request] => Streaming[Response]
+  )(using HasRpc[Rpcs, rpc.type], Tag[Request], Tag[Response]): Streaming[Request] => Streaming[Response]
 
   /**
     * Creates a new client streaming client with the ability to send and receive metadata.
@@ -150,7 +151,8 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
   def clientWithMetadata[Rpcs, Request, Response](
     rpc: Rpc.ClientStreaming[Request, Response],
     service: Service[Rpcs]
-  )(using HasRpc[Rpcs, rpc.type]): (Streaming[Request], Metadata) => Unary[(Response, Metadata)] = clientWithMetadata(rpc, service, identity)
+  )(using HasRpc[Rpcs, rpc.type], Tag[Request]): (Streaming[Request], Metadata) => Unary[(Response, Metadata)] =
+    clientWithMetadata(rpc, service, identity)
 
   /**
     * Creates a new client streaming client with the ability to send and receive metadata.
@@ -163,7 +165,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
     rpc: Rpc.ClientStreaming[Request, Response],
     service: Service[Rpcs],
     options: CallOptions => CallOptions
-  )(using HasRpc[Rpcs, rpc.type]): (Streaming[Request], Metadata) => Unary[(Response, Metadata)]
+  )(using HasRpc[Rpcs, rpc.type], Tag[Request]): (Streaming[Request], Metadata) => Unary[(Response, Metadata)]
 
   /**
     * Creates a new server streaming client with the ability to send and receive metadata.
@@ -174,7 +176,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
   def clientWithMetadata[Rpcs, Request, Response](
     rpc: Rpc.ServerStreaming[Request, Response],
     service: Service[Rpcs]
-  )(using HasRpc[Rpcs, rpc.type]): (Request, Metadata) => Streaming[Response] = clientWithMetadata(rpc, service, identity)
+  )(using HasRpc[Rpcs, rpc.type], Tag[Response]): (Request, Metadata) => Streaming[Response] = clientWithMetadata(rpc, service, identity)
 
   /**
     * Creates a new server streaming client with the ability to send and receive metadata.
@@ -187,7 +189,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
     rpc: Rpc.ServerStreaming[Request, Response],
     service: Service[Rpcs],
     options: CallOptions => CallOptions
-  )(using HasRpc[Rpcs, rpc.type]): (Request, Metadata) => Streaming[Response]
+  )(using HasRpc[Rpcs, rpc.type], Tag[Response]): (Request, Metadata) => Streaming[Response]
 
   /**
     * Creates a new bidirectional streaming client with the ability to send and receive metadata.
@@ -198,7 +200,8 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
   def clientWithMetadata[Rpcs, Request, Response](
     rpc: Rpc.BidiStreaming[Request, Response],
     service: Service[Rpcs]
-  )(using HasRpc[Rpcs, rpc.type]): (Streaming[Request], Metadata) => Streaming[Response] = clientWithMetadata(rpc, service, identity)
+  )(using HasRpc[Rpcs, rpc.type], Tag[Request], Tag[Response]): (Streaming[Request], Metadata) => Streaming[Response] =
+    clientWithMetadata(rpc, service, identity)
 
   /**
     * Creates a new bidirectional streaming client with the ability to send and receive metadata.
@@ -211,7 +214,7 @@ trait ClientBackend[Unary[_], Streaming[_]] extends ClientBackendUnary[Unary] {
     rpc: Rpc.BidiStreaming[Request, Response],
     service: Service[Rpcs],
     options: CallOptions => CallOptions
-  )(using HasRpc[Rpcs, rpc.type]): (Streaming[Request], Metadata) => Streaming[Response]
+  )(using HasRpc[Rpcs, rpc.type], Tag[Request], Tag[Response]): (Streaming[Request], Metadata) => Streaming[Response]
 }
 
 object ClientBackend {

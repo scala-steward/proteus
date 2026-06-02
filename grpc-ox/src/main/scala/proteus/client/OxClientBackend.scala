@@ -19,6 +19,7 @@ import ox.flow.Flow
   * @param prefetchN initial in-flight response window for server-streaming / bidi RPCs; also sizes the response channel buffer.
   */
 class OxClientBackend(channel: Channel, prefetchN: Int) extends ClientBackend[[A] =>> A, Flow] {
+  type Tag[A] = NoTag[A]
 
   private val prefetch: Int = math.max(prefetchN, 1)
 
@@ -73,7 +74,8 @@ class OxClientBackend(channel: Channel, prefetchN: Int) extends ClientBackend[[A
   }
 
   def client[Rpcs, Request, Response](rpc: Rpc.ClientStreaming[Request, Response], service: Service[Rpcs], options: CallOptions => CallOptions)(
-    using HasRpc[Rpcs, rpc.type]
+    using HasRpc[Rpcs, rpc.type],
+    NoTag[Request]
   ): Flow[Request] => Response = {
     val methodDescriptor = rpc.toMethodDescriptor(service)
     requestFlow => {
@@ -101,7 +103,8 @@ class OxClientBackend(channel: Channel, prefetchN: Int) extends ClientBackend[[A
   }
 
   def client[Rpcs, Request, Response](rpc: Rpc.ServerStreaming[Request, Response], service: Service[Rpcs], options: CallOptions => CallOptions)(
-    using HasRpc[Rpcs, rpc.type]
+    using HasRpc[Rpcs, rpc.type],
+    NoTag[Response]
   ): Request => Flow[Response] = {
     val methodDescriptor = rpc.toMethodDescriptor(service)
     request =>
@@ -120,7 +123,9 @@ class OxClientBackend(channel: Channel, prefetchN: Int) extends ClientBackend[[A
   }
 
   def client[Rpcs, Request, Response](rpc: Rpc.BidiStreaming[Request, Response], service: Service[Rpcs], options: CallOptions => CallOptions)(
-    using HasRpc[Rpcs, rpc.type]
+    using HasRpc[Rpcs, rpc.type],
+    NoTag[Request],
+    NoTag[Response]
   ): Flow[Request] => Flow[Response] = {
     val methodDescriptor = rpc.toMethodDescriptor(service)
     requestFlow =>
@@ -186,7 +191,7 @@ class OxClientBackend(channel: Channel, prefetchN: Int) extends ClientBackend[[A
     rpc: Rpc.ClientStreaming[Request, Response],
     service: Service[Rpcs],
     options: CallOptions => CallOptions
-  )(using HasRpc[Rpcs, rpc.type]): (Flow[Request], Metadata) => (Response, Metadata) = {
+  )(using HasRpc[Rpcs, rpc.type], NoTag[Request]): (Flow[Request], Metadata) => (Response, Metadata) = {
     val methodDescriptor = rpc.toMethodDescriptor(service)
     (requestFlow, requestMetadata) => {
       val responseChannel = OxChannel.buffered[Response](1)
@@ -219,7 +224,7 @@ class OxClientBackend(channel: Channel, prefetchN: Int) extends ClientBackend[[A
     rpc: Rpc.ServerStreaming[Request, Response],
     service: Service[Rpcs],
     options: CallOptions => CallOptions
-  )(using HasRpc[Rpcs, rpc.type]): (Request, Metadata) => Flow[Response] = {
+  )(using HasRpc[Rpcs, rpc.type], NoTag[Response]): (Request, Metadata) => Flow[Response] = {
     val methodDescriptor = rpc.toMethodDescriptor(service)
     (request, requestMetadata) =>
       Flow.usingEmit { emit =>
@@ -240,7 +245,7 @@ class OxClientBackend(channel: Channel, prefetchN: Int) extends ClientBackend[[A
     rpc: Rpc.BidiStreaming[Request, Response],
     service: Service[Rpcs],
     options: CallOptions => CallOptions
-  )(using HasRpc[Rpcs, rpc.type]): (Flow[Request], Metadata) => Flow[Response] = {
+  )(using HasRpc[Rpcs, rpc.type], NoTag[Request], NoTag[Response]): (Flow[Request], Metadata) => Flow[Response] = {
     val methodDescriptor = rpc.toMethodDescriptor(service)
     (requestFlow, requestMetadata) =>
       Flow.usingEmit { emit =>
