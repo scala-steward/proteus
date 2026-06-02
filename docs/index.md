@@ -25,7 +25,7 @@ features:
   - title: Schema Generation
     details: Generate .proto files to document your schema and efficiently track changes. Various customizations are available.
   - title: Declarative gRPC Services
-    details: Define gRPC services in Scala. Generate clients and servers from them using direct style, Future, ZIO, fs2 or Ox backends.
+    details: Define gRPC services in Scala. Generate clients and servers from them using direct style, Future, ZIO, fs2, Ox or Kyo backends.
   - title: Schema Diffing
     details: Detect breaking changes between .proto schemas with the proteus-diff CLI. Standalone native binary, no JVM required.
     link: /proteus-diff

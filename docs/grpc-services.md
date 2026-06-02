@@ -2,7 +2,7 @@
 
 Proteus allows you to define RPCs and gRPC services in Scala using your own types, relying on `ProtobufCodec` to encode and decode the messages.
 
-It uses [grpc-java](https://github.com/grpc/grpc-java) directly, with backends for direct style, `Future`, [ZIO](https://zio.dev), [fs2](https://fs2.io), and [Ox](https://ox.softwaremill.com).
+It uses [grpc-java](https://github.com/grpc/grpc-java) directly, with backends for direct style, `Future`, [ZIO](https://zio.dev), [fs2](https://fs2.io), [Ox](https://ox.softwaremill.com), and [Kyo](https://getkyo.io).
 
 In order to use it, you will need to add the following dependency to your `build.sbt` file:
 
@@ -12,6 +12,7 @@ In order to use it, you will need to add the following dependency to your `build
 "com.github.ghostdogpr" %% "proteus-grpc-zio" % "@VERSION@" // zio backend
 "com.github.ghostdogpr" %% "proteus-grpc-fs2" % "@VERSION@" // fs2 backend
 "com.github.ghostdogpr" %% "proteus-grpc-ox"  % "@VERSION@" // ox backend (requires JDK 21+)
+"com.github.ghostdogpr" %% "proteus-grpc-kyo" % "@VERSION@" // kyo backend (requires Scala 3.8.3+)
 ```
 
 ## Defining services
@@ -62,6 +63,7 @@ Here are the values for the different backends:
 - `ZioServerBackend`: `Unary` is `ZIO[R, E, *]`, `Streaming` is `ZStream[R, E, *]`.
 - `Fs2ServerBackend`: `Unary` is `F`, `Streaming` is `Stream[F, *]`.
 - `OxServerBackend`: omit the `Unary` wrapper (direct style), `Streaming` is `Flow[*]`.
+- `KyoServerBackend`: `Unary` is `* < (Async & Abort[StatusException])`, `Streaming` is `Stream[*, Async & Abort[StatusException]]`.
 
 It is possible to implement your own custom backend quite easily as long as you are using grpc-java under the hood.
 
