@@ -106,7 +106,7 @@ implicit def jsonWriterCodec[A](using codec: ProtobufCodec[A], registry: Registr
                     val it      = c.deconstructor.deconstruct[e](b)
                     val builder = Vector.newBuilder[Json]
                     while (it.hasNext) {
-                      val v = it.next
+                      val v = it.next()
                       builder += loop(v, c.element, offset)
                     }
                     Json.fromValues(builder.result())
@@ -114,7 +114,7 @@ implicit def jsonWriterCodec[A](using codec: ProtobufCodec[A], registry: Registr
                     val it      = c.deconstructor.deconstruct(b.asInstanceOf[m[k, v]])
                     val builder = Vector.newBuilder[Json]
                     while (it.hasNext) {
-                      val v     = it.next
+                      val v     = it.next()
                       val key   = loop(c.deconstructor.getKey(v), c.element.fields(0).asInstanceOf[SimpleField[?]].codec, offset)
                       val value = loop(c.deconstructor.getValue(v), c.element.fields(1).asInstanceOf[SimpleField[?]].codec, offset)
                       if (options.formatMapEntriesAsKeyValuePairs) builder += Json.obj("key" -> key, "value" -> value)
