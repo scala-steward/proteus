@@ -747,7 +747,7 @@ object ProtobufCodec {
         var innerSize   = 0
         val sizeIndex   = if (packed) cache.reserveSize() else -1
         while (it.hasNext)
-          innerSize += ProtobufCodec.computeSize(element, it.next, effectiveId, registers, alwaysEncode = true, cache)
+          innerSize += ProtobufCodec.computeSize(element, it.next(), effectiveId, registers, alwaysEncode = true, cache)
         if (packed) {
           cache.fillSize(sizeIndex, innerSize)
           CodedOutputStream.computeUInt32Size(id, innerSize) + innerSize
