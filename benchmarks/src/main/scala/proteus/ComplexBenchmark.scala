@@ -15,45 +15,58 @@ import upickle.default.*
 @Measurement(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
 @Fork(1)
 class ComplexBenchmark {
-  @Benchmark
-  def proteus(bh: Blackhole): Unit = {
-    val encoded = proteusCodec.encode(complexData)
-    bh.consume(proteusCodec.decode(encoded))
-  }
+  private val proteusEnc = proteusCodec.encode(complexData)
+  private val scalapbEnc = domainToScalaPB(complexData).toByteArray
+  private val zioEnc     = zioSchemaCodec.encode(complexData)
+  private val upickleEnc = writeBinary(complexData)
+  private val borerEnc   = Cbor.encode(complexData).toByteArray
+  private val kyoEnc     = _root_.kyo.Protobuf.encode(complexData)
 
   @Benchmark
-  def scalapb_chimney(bh: Blackhole): Unit = {
-    val encoded = domainToScalaPB(complexData).toByteArray
-    bh.consume(scalaPBToDomain(scalapb.A.parseFrom(encoded)))
-  }
+  def proteus_encode(bh: Blackhole): Unit =
+    bh.consume(proteusCodec.encode(complexData))
 
   @Benchmark
-  def zio_blocks_json(bh: Blackhole): Unit = {
-    val encoded = jsonCodec.encode(complexData)
-    bh.consume(jsonCodec.decode(encoded))
-  }
+  def proteus_decode(bh: Blackhole): Unit =
+    bh.consume(proteusCodec.decode(proteusEnc))
 
   @Benchmark
-  def zio_schema_protobuf(bh: Blackhole): Unit = {
-    val encoded = zioSchemaCodec.encode(complexData)
-    bh.consume(zioSchemaCodec.decode(encoded))
-  }
+  def scalapb_chimney_encode(bh: Blackhole): Unit =
+    bh.consume(domainToScalaPB(complexData).toByteArray)
 
   @Benchmark
-  def upickle(bh: Blackhole): Unit = {
-    val encoded = writeBinary(complexData)
-    bh.consume(readBinary[A](encoded))
-  }
+  def scalapb_chimney_decode(bh: Blackhole): Unit =
+    bh.consume(scalaPBToDomain(scalapb.A.parseFrom(scalapbEnc)))
 
   @Benchmark
-  def borer(bh: Blackhole): Unit = {
-    val encoded = Cbor.encode(complexData).toByteArray
-    bh.consume(Cbor.decode(encoded).to[A].value)
-  }
+  def zio_schema_protobuf_encode(bh: Blackhole): Unit =
+    bh.consume(zioSchemaCodec.encode(complexData))
 
   @Benchmark
-  def kyo(bh: Blackhole): Unit = {
-    val encoded = _root_.kyo.Protobuf.encode(complexData)
-    bh.consume(_root_.kyo.Protobuf.decode[A](encoded).getOrThrow)
-  }
+  def zio_schema_protobuf_decode(bh: Blackhole): Unit =
+    bh.consume(zioSchemaCodec.decode(zioEnc))
+
+  @Benchmark
+  def upickle_encode(bh: Blackhole): Unit =
+    bh.consume(writeBinary(complexData))
+
+  @Benchmark
+  def upickle_decode(bh: Blackhole): Unit =
+    bh.consume(readBinary[A](upickleEnc))
+
+  @Benchmark
+  def borer_encode(bh: Blackhole): Unit =
+    bh.consume(Cbor.encode(complexData).toByteArray)
+
+  @Benchmark
+  def borer_decode(bh: Blackhole): Unit =
+    bh.consume(Cbor.decode(borerEnc).to[A].value)
+
+  @Benchmark
+  def kyo_encode(bh: Blackhole): Unit =
+    bh.consume(_root_.kyo.Protobuf.encode(complexData))
+
+  @Benchmark
+  def kyo_decode(bh: Blackhole): Unit =
+    bh.consume(_root_.kyo.Protobuf.decode[A](kyoEnc).getOrThrow)
 }
