@@ -604,8 +604,10 @@ object ProtoDiff {
     val rem3New  = rem2New.filterNot(v => numKeys.contains(v.intValue))
 
     // Pass 4: unmatched
-    val removed = rem3Old.map(v => EnumValueRemoved(path, v.name, v.intValue, isNumberReserved(v.intValue, newReserved)))
-    val added   = rem3New.map(v => EnumValueAdded(path, v.name, v.intValue))
+    val newNumbers = newValues.map(_.intValue).toSet
+    val removed    =
+      rem3Old.map(v => EnumValueRemoved(path, v.name, v.intValue, isNumberReserved(v.intValue, newReserved) || newNumbers.contains(v.intValue)))
+    val added      = rem3New.map(v => EnumValueAdded(path, v.name, v.intValue))
 
     exactDiffs ++ nameDiffs ++ numDiffs ++ removed ++ added
   }
@@ -630,12 +632,54 @@ object ProtoDiff {
     (changes, oldItems.filterNot(renamedOld.contains), newItems.filterNot(renamedNew.contains))
   }
 
+  private def reservedNumberIntervals(res: List[Reserved]): List[(Int, Int)] = {
+    val ranges = res
+      .collect {
+        case Reserved.Number(n)   => (n, n)
+        case Reserved.Range(s, e) => (s, e)
+      }
+      .sortBy(_._1)
+    ranges
+      .foldLeft(List.empty[(Int, Int)]) { case (acc, (s, e)) =>
+        acc match {
+          case (ps, pe) :: tail if s.toLong <= pe.toLong + 1 => (ps, math.max(pe, e)) :: tail
+          case _                                             => (s, e) :: acc
+        }
+      }
+      .reverse
+  }
+
+  /**
+    * Coverage of `minuend` intervals not covered by `subtrahend`, as canonical Int intervals.
+    */
+  private def subtractIntervals(minuend: List[(Int, Int)], subtrahend: List[(Int, Int)]): List[(Int, Int)] =
+    minuend.flatMap { case (s, e) =>
+      subtrahend
+        .foldLeft(List((s.toLong, e.toLong))) { (segments, b) =>
+          val (bs, be) = (b._1.toLong, b._2.toLong)
+          segments.flatMap { case (ls, le) =>
+            if (be < ls || bs > le) List((ls, le))
+            else (if (ls < bs) List((ls, bs - 1)) else Nil) ++ (if (le > be) List((be + 1, le)) else Nil)
+          }
+        }
+        .map { case (ls, le) => (ls.toInt, le.toInt) }
+    }
+
+  private def intervalToReserved(iv: (Int, Int)): Reserved =
+    if (iv._1 == iv._2) Reserved.Number(iv._1) else Reserved.Range(iv._1, iv._2)
+
   private def diffReserved(oldRes: List[Reserved], newRes: List[Reserved], path: List[String]): List[Change] = {
-    val oldSet  = oldRes.toSet
-    val newSet  = newRes.toSet
-    val removed = (oldSet -- newSet).toList.map(r => ReservedRemoved(path, r))
-    val added   = (newSet -- oldSet).toList.map(r => ReservedAdded(path, r))
-    removed ++ added
+    val oldIv         = reservedNumberIntervals(oldRes)
+    val newIv         = reservedNumberIntervals(newRes)
+    val numberChanges =
+      subtractIntervals(oldIv, newIv).map(iv => ReservedRemoved(path, intervalToReserved(iv))) ++
+        subtractIntervals(newIv, oldIv).map(iv => ReservedAdded(path, intervalToReserved(iv)))
+    val oldNames      = oldRes.collect { case r: Reserved.Name => r }.toSet
+    val newNames      = newRes.collect { case r: Reserved.Name => r }.toSet
+    val nameChanges   =
+      (oldNames -- newNames).toList.map(r => ReservedRemoved(path, r)) ++
+        (newNames -- oldNames).toList.map(r => ReservedAdded(path, r))
+    numberChanges ++ nameChanges
   }
 
   private def diffServices(oldSvcs: List[Service], newSvcs: List[Service], path: List[String]): List[Change] = {
